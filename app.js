@@ -18,14 +18,20 @@
 var firebase = require("firebase");
 
 firebase.initializeApp({
-  serviceAccount: {
-    projectId : "moviting",
-    clientEmail: "moviting-backend@moviting.iam.gserviceaccount.com",
-    privateKey : "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC9jd8XSdVeCGcW\n2mqYBfiFEuaF70o7cB2qMiW4tViPy+9iQWlnlbe42C3kgiMludbZgpBtT55V4UC4\nu5juesnhCd2QEgFuuxgIP1PBoWWMCUTfG5IDTLDMKbL02Rm0bELJu5bRZkBJQ1L6\ngl9wj+sY58ZNTCvbae0Pa+6cwzKb3pszl4kqDrlp2Erz72VNWxZc/WK/8ZgJvKes\npYmdz+RxaVEZ/GayNBChzb7t//udsqozLpsBaRtwzX0n8KR2YhAeh5qDLXDFejXx\nMd9jFDuCEG62DiWquUUxn+TkOl9ZeCsMYE4y80RJ3+nXytS4V5mWKkeyoLrI4DOR\nAudkjWQjAgMBAAECggEBAJFe/YnpuPYdsZoINhmS8q5z+VEcXCzLZiTBwsYuZdYa\nC+Op0MF9Q+JCAKgv2e6z4H79r+/1ULQCRVWnobi7eJnarA4ykOCwIdUpY/2q3qsP\n7L7CcS+QoEJjdHhtC1agdHQsJpU/Ouw08q1mUPWNmjqGfkGHulbSnNjn6J5W4ThB\no/KI3K0gENehU2KK6vZmKPiut6v7r/uVVOx3eecT4M463wu4GRgrlA1jCHhsxbWw\nHWBSo/oUjJEztsyPrrIiFgUDnMwPpzr5rAeVbWVucsr8/gIGqBJZwagLWNf7UfTb\n+Ey6RibMLlfB/jXn+mQ2DzRoYLhUCCZ4Qw9MVlyF/XkCgYEA8ylHxOPjwv3xBWNU\nnq1s1R2rg81Ag5GREcksIAoBagcNzp0vr+p8yctQ/4xoDGPhG9TrhhslIUKvsRZq\n33Aq0oyUoN6tchJ9QBdFTizcT0ODZ/9aWnNuSbzdgiNLyhN/fcaPn/fHn5n4jvqi\nCTqXEY4lvfFcbgZz/bQx5e9WLsUCgYEAx5ABI3w9pTgBei40EygfcKhaRz9R/cBc\n2K30q83fYPPz2i7QTkhGe2G0gYJbsaoeeK7ucWB8AGKbkE0KrQKA+NLlqCecwDcP\nkQqIhcSCQUQ19FDxV5SIpe2zzxlaTyA9YY46+cLPu2I47mKKIjIGqRMzLDiUzH1Q\nLG6KwlNjdccCgYEAk/o8NeLlucWmhrvjREmQIMXUmfov16Gfoi5GDx1nrOmsCl/4\nJFtUI836dfoxW9DwrmpOBqfAWdRmbSOSWHW/abCpxpic/v2ngXhn8eI1FHumnYR1\nrPPwWyl3t/nY5polDRroTtaQgl1GOWTndSxVwRY7e7NFp6N/tRaTAzY6wW0CgYEA\nsE0uVFUseMwTsgcjhlEKBZMVvp/YJZ9N5zc3UpicYaDjq7tz19TOP64/s7Kgo0Kx\njNiuWodsxUJYQJFvfw0ZN7nJnlbwineaTv7JQbQrhtFmASOJM2BLoJtxIOM6/3By\nCb+HpqNOtjK+LQvtEOy1KaWGreiGvGlw7O/zsl3NHn0CgYBv/NQbTY6AbIyPyXhY\n8k/ovBempBV7CBbG1DCYUij9/DgxJQMG7H/qYSKB3laYRaeQaFj6y2jTpksbY2NN\nwACfTR+5whtorRBqu9mkF5iHhJ26JiFh2a3z1EM/8NZRse+0NoLzY1H94pDMolOW\nVP5zWSVpprHMZt+R4VvtUprKGg==\n-----END PRIVATE KEY-----\n"
-  },
   databaseURL: "https://moviting.firebaseio.com/"
 });
 
 var db = firebase.database();
-var ref = db.ref("applicants");
+var ref = db.ref("users");
 
+ref.on("child_added", function(snapshot, prevChildKey){
+  console.log("child_added: " + snapshot);
+});
+
+ref.on("child_changed", function(snapshot){
+  console.log("child_changed: " + snapshot);
+});
+
+ref.on("child_removed", function(snapshot){
+  console.log("child_removed: " + snapshot);
+});
