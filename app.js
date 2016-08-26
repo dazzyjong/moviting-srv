@@ -31,6 +31,7 @@ var db = firebase.database();
 var userRef = db.ref("users");
 var maleEnrollRef = db.ref("enroll/male");
 var femaleEnrolleRef = db.ref("enroll/female");
+var proposed = db.ref("proposed");
 
 userRef.on("child_added", function(snapshot, prevChildKey){
   console.log("child_added: " + snapshot.val().email);
@@ -40,12 +41,65 @@ userRef.on("child_added", function(snapshot, prevChildKey){
       console.log("child_changed: " + snapshot.val());
       if(snapshot.val() == "Enrolled") {
         snapshot.ref.parent.once("value", function(data){
-          console.log("enrolled_user: " + data.val().gender + " / " + data.val().myAge );
+          console.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge );
+          if(data.val().gender == "male") {
+            var uid = data.key;
+            maleEnrollRef.child(data.val().myAge + "/" + uid).set(true);
+          } else {
+            var uid = data.key;
+            femaleEnrolleRef.child(data.val().myAge + "/" + uid).set(true);
+          }
         })
       }
     }
   });
 });
+
+setTimeout(function(){
+  
+  setInterval(function(){
+
+  }, 86400000 );
+}, getIntervalByNoon());
+
+maleEnrollRef.once("value").then(function(snapshot){
+  snapshot.forEach(function(childSnapshot){
+    // age
+    console.log(childSnapshot.key);
+    childSnapshot.ref.once("value").then(function(snapshot){
+      snapshot.forEach(function(childSnapshot){
+        // uid
+        console.log(childSnapshot.key);
+        userRef.child(childSnapshot.key).once("value").then(function(data){
+          // min max pref age
+          var minPrefAge = data.child("minPrefAge").val();
+          var maxPrefAge = data.child("maxPrefAge").val();
+          console.log(minPrefAge + " / " + maxPrefAge);
+        });
+      });
+    });
+  });
+});
+
+function getIntervalByNoon() {
+  var today = new Date();
+  var todayHours = today.getHours();
+  if(todayHours >= 12) {
+    var tomorrowNoon = new Date(today.getFullYear(), 
+                                today.getMonth(), 
+                                today.getDate() + 1, 
+                                12,0,0,0);
+    console.log("tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
+    return tomorrowNoon.getTime() - today.getTime();
+  } else {
+    var todayNoon = new Date(today.getFullYear(), 
+                             today.getMonth(), 
+                             today.getDate(), 
+                             12,0,0,0);
+    console.log("today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
+    return todayNoon.getTime() - today.getTime();
+  }
+}
 
 userRef.on("child_removed", function(snapshot){
   console.log("child_removed: " + snapshot.val());
