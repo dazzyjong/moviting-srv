@@ -17,6 +17,7 @@
 
 var firebase = require("firebase");
 var async = require('async');
+var FCM = require('fcm-push-notif');
 
 firebase.initializeApp({
   serviceAccount: {
@@ -32,6 +33,9 @@ var userRef = db.ref("users");
 var maleEnrollRef = db.ref("enroll/male");
 var femaleEnrolleRef = db.ref("enroll/female");
 var proposedRef = db.ref("proposed");
+
+var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
+var fcm = new FCM(serverKey);
 
 //listener of user added
 userRef.on("child_added", function(snapshot, prevChildKey) {
@@ -171,7 +175,7 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
           break;
         }
         var pick = Math.floor(Math.random() * result.length);
-        console.log("pick: " + pick + " / " + result.length + result[pick]);
+        console.log("pick: " + pick + " / " + result.length + " / " + result[pick]);
         propose.push(result[pick])
         result.splice(pick, 1);
       }
@@ -186,7 +190,7 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
 }
 
 setTimeout(function() {
-  enrollerList(maleEnrollRef, femaleEnrolleRef);
+  //enrollerList(maleEnrollRef, femaleEnrolleRef);
   //getEnrolledByGender(femaleEnrolleRef, maleEnrollRef);
 
   // setInterval(function(){
@@ -219,6 +223,8 @@ function getIntervalByNoon() {
 userRef.on("child_removed", function(snapshot) {
   console.log("child_removed: " + snapshot.val());
 });
+
+
 
 setInterval(function() {
   console.log("alive");
