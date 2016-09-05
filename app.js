@@ -37,6 +37,24 @@ var proposedRef = db.ref("proposed");
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
 
+var message = {
+  to: "cH9O10WYp84:APA91bF5I00gp_HnQ8JCKRueP_RherzUfuFxk7-g6yEJgdlBiFe0FUY_Igyh3OYuZ5EnlwRuuPpqUKFp2NLw8xUJYEbm2VLXe-T4m7I8y6wG8JTJHJR_vVAxWTX-WE4WXdXNopNBSwN2",
+  collapse_key:"moviting",
+  notification: {
+    title: "test",
+    body: "test"
+  }
+};
+
+fcm.send(message)
+  .then(function(response){
+    console.log("Successfully sent with response: ", response);
+  })
+  .catch(function(err){
+    console.log("Something has gone wrong!");
+    console.error(err);
+  });
+
 //listener of user added
 userRef.on("child_added", function(snapshot, prevChildKey) {
   console.log("child_added: " + snapshot.val().email);
@@ -223,8 +241,6 @@ function getIntervalByNoon() {
 userRef.on("child_removed", function(snapshot) {
   console.log("child_removed: " + snapshot.val());
 });
-
-
 
 setInterval(function() {
   console.log("alive");
