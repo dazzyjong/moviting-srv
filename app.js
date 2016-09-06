@@ -32,7 +32,7 @@ var db = firebase.database();
 var userRef = db.ref("users");
 var maleEnrollRef = db.ref("enroll/male");
 var femaleEnrolleRef = db.ref("enroll/female");
-var proposedRef = db.ref("proposed");
+var proposeRef = db.ref("propose");
 
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
@@ -79,6 +79,21 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Matched") {
       console.log("child_changed: " + snapshot.val());
     }
+  });
+});
+
+// listner of propose
+proposeRef.on("child_added", function(snapshot, prevChildKey) {
+  console.log("proposed: " + snapshot.key);
+  snapshot.forEach(function(childSnapshot){
+    console.log("proposed child: " + childSnapshot.key);
+    childSnapshot.ref.on("child_changed", function(snapshot) {
+      if (snapshot.key == "status" && snapshot.val() == "Like") {
+        console.log(snapshot.ref.parent.key);
+      } else if (snapshot.key == "status" && snapshot.val() == "Dislike") {
+        console.log(snapshot.ref.parent.key);
+      }
+    });
   });
 });
 
@@ -160,7 +175,7 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
           });
         },
         function(callback) {
-          proposedRef.child(enrollerUid).once("value").then(function(data) {
+          proposeRef.child(enrollerUid).once("value").then(function(data) {
             callback(null, data);
           });
         },
@@ -199,7 +214,10 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
       }
       console.log("last: " + enrollerUid + " / " + propose.length + " / " + propose);
       for (var i = 0; i < propose.length; i++) {
-        proposedRef.child(enrollerUid + "/" + propose[i]).set(true);
+        proposeRef.child(enrollerUid + "/" + propose[i]).set({
+          proposedAt: firebase.database.ServerValue.TIMESTAMP,
+          status: "Proposed"
+        });
       }
     } else if(err != null){
       console.log(err);
