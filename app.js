@@ -37,24 +37,6 @@ var proposeRef = db.ref("propose");
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
 
-var message = {
-  to: "cH9O10WYp84:APA91bF5I00gp_HnQ8JCKRueP_RherzUfuFxk7-g6yEJgdlBiFe0FUY_Igyh3OYuZ5EnlwRuuPpqUKFp2NLw8xUJYEbm2VLXe-T4m7I8y6wG8JTJHJR_vVAxWTX-WE4WXdXNopNBSwN2",
-  collapse_key:"moviting",
-  notification: {
-    title: "test",
-    body: "test"
-  }
-};
-
-fcm.send(message)
-  .then(function(response){
-    console.log("Successfully sent with response: ", response);
-  })
-  .catch(function(err){
-    console.log("Something has gone wrong!");
-    console.error(err);
-  });
-
 //listener of user added
 userRef.on("child_added", function(snapshot, prevChildKey) {
   console.log("child_added: " + snapshot.val().email);
@@ -130,18 +112,22 @@ function enrollerData(enrollerUid, opponentRef) {
       var minPrefAge = data.child("minPrefAge").val().toString();
       var maxPrefAge = data.child("maxPrefAge").val().toString();
       var enrollerAge = data.child("myAge").val();
-      console.log("enrollerData(second): " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge);
-      opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, maxPrefAge, callback);
+      var token = data.child("token").val();
+      console.log("enrollerData(second): " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + token);
+      opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, maxPrefAge, token, callback);
     }
   ], function(err, result) {
     if(err != null) {
       console.error("enrollerData err: " + err.toString());
     }
-    console.log("end!!!!")
+    if(result != null) {
+      console.log("end!!!! ");
+      sendFCMMessage(result);
+    }
   });
 }
 
-function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, maxPrefAge, parentCallback) {
+function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, maxPrefAge, token, parentCallback) {
   var query = opponentRef.orderByKey().startAt(minPrefAge).endAt(maxPrefAge);
   var candidates = [];
   var filteredCandidates = [];
@@ -222,11 +208,12 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
     } else if(err != null){
       console.log(err);
     }
-  }); //[end async.each]
+    parentCallback(null, token);
+  });
 }
 
 setTimeout(function() {
-  //enrollerList(maleEnrollRef, femaleEnrolleRef);
+  enrollerList(maleEnrollRef, femaleEnrolleRef);
   //getEnrolledByGender(femaleEnrolleRef, maleEnrollRef);
 
   // setInterval(function(){
@@ -254,6 +241,26 @@ function getIntervalByNoon() {
     console.log("today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
     return todayNoon.getTime() - today.getTime();
   }
+}
+
+function sendFCMMessage(token) {
+  var message = {
+    to: token,
+    collapse_key:"moviting-propose",
+    notification: {
+      title: "오늘의 소개가 도착했습니다.",
+      body: "오늘의 소개가 도착했습니다."
+    }
+  };
+
+  fcm.send(message)
+    .then(function(response){
+      console.log("Successfully sent with response: ", response);
+    })
+    .catch(function(err){
+      console.log("Something has gone wrong!");
+      console.error(err);
+    });
 }
 
 userRef.on("child_removed", function(snapshot) {
