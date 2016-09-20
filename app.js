@@ -35,6 +35,7 @@ var femaleEnrollRef = db.ref("enroll/female");
 var proposeRef = db.ref("propose");
 var matchMemberRef = db.ref("match_member");
 var matchChatRef = db.ref("match_chat");
+var userMatchRef = db.ref("user_match");
 
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
@@ -75,7 +76,7 @@ proposeRef.on("child_added", function(snapshot, prevChildKey) {
     childSnapshot.ref.on("child_changed", function(snapshot) {
       if (snapshot.key == "status" && snapshot.val() == "Like") {
         console.log(snapshot.ref.parent.parent.key + " / " + snapshot.ref.parent.key);
-        matchCheck(snapshot.ref.parent.parent.key, snapshot.ref.parent.key);
+        checkMatch(snapshot.ref.parent.parent.key, snapshot.ref.parent.key);
       } else if (snapshot.key == "status" && snapshot.val() == "Dislike") {
         console.log(snapshot.ref.parent.key);
       }
@@ -84,16 +85,17 @@ proposeRef.on("child_added", function(snapshot, prevChildKey) {
   });
 });
 
-function matchCheck(enrollerUid, opponentUid) {
+function checkMatch(enrollerUid, opponentUid) {
   var isFound = false;
 
   proposeRef.child(opponentUid).once("value", function(snapshot){
-    console.log("matchCheck: " + snapshot.key);
+    console.log("checkMatch: " + snapshot.key);
     snapshot.forEach(function(child){
-      console.log("matchCheck child: " + child.key);
+      console.log("checkMatch child: " + child.key);
       if(child.key === enrollerUid){
         if(child.child("status").val() === "Like") {
           // Both user like each other
+          console.log(child.child("status").val());
           makeMatchMember(enrollerUid, opponentUid);
           updateEnroll(enrollerUid, opponentUid);
         }
@@ -108,8 +110,14 @@ function matchCheck(enrollerUid, opponentUid) {
 
 function makeMatchMember(enrollerUid, opponentUid) {
   var newMatchMemberRef = matchMemberRef.push();
-  newMatchMemberRef.child(enrollerUid).set(true);
-  newMatchMemberRef.child(opponentUid).set(true);
+  newMatchMemberRef.child(enrollerUid).child("payment").set(false);
+  newMatchMemberRef.child(opponentUid).child("payment").set(false);
+  userMatchRef.child(enrollerUid).child(newMatchMemberRef.key).set(true);
+  userMatchRef.child(opponentUid).child(newMatchMemberRef.key).set(true);
+  var newMatchChatRef = matchChatRef.child(newMatchMemberRef.key).push();
+  newMatchChatRef.child("uid").set("");
+  newMatchChatRef.child("message").set("test");
+  console.log("makeMatchMember" + newMatchMemberRef.toString());
 }
 
 function updateEnroll(enrollerUid, opponentUid) {
@@ -122,14 +130,14 @@ function sendProposeToOpponent(enrollerUid, opponentUid) {
     proposedAt: firebase.database.ServerValue.TIMESTAMP,
     status: "Proposed"
   }).then(function(){
-    userRef.child(enrollerUid).once("value").then(function(data) {
+    userRef.child(opponentUid).once("value").then(function(data) {
       var token = data.child("token").val();
       if(token != null){
-        sendFCMMessage();
+        sendFCMMessage(token, "오늘의 소개가 도착했습니다.");
       }
     });
   }).catch(function(){
-    console.log('Synchronization failed');
+    console.log('sendProposeToOpponent failed');
   });
 }
 
@@ -192,7 +200,7 @@ function processEachEnrollerData(enrollerDataList, callback) {
         console.error("processEachEnrollerData result");
         if(result != null) {
           console.log("send fcm to: " + result);
-          sendFCMMessage(result);
+          sendFCMMessage(result,"오늘의 소개가 도착했습니다.");
         }
         callback();
       }
@@ -394,13 +402,13 @@ function getIntervalByNoon() {
   }
 }
 
-function sendFCMMessage(token) {
+function sendFCMMessage(token, messageBody) {
   var message = {
     to: token,
     collapse_key:"moviting-propose",
     notification: {
-      title: "오늘의 소개가 도착했습니다.",
-      body: "오늘의 소개가 도착했습니다."
+      title: messageBody,
+      body: messageBody
     }
   };
 
