@@ -31,8 +31,10 @@ firebase.initializeApp({
 var db = firebase.database();
 var userRef = db.ref("users");
 var maleEnrollRef = db.ref("enroll/male");
-var femaleEnrolleRef = db.ref("enroll/female");
+var femaleEnrollRef = db.ref("enroll/female");
 var proposeRef = db.ref("propose");
+var matchMemberRef = db.ref("match_member");
+var matchChatRef = db.ref("match_chat");
 
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
@@ -53,7 +55,7 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
           maleEnrollRef.child(data.val().myAge + "/" + uid).set(true);
         } else {
           var uid = data.key;
-          femaleEnrolleRef.child(data.val().myAge + "/" + uid).set(true);
+          femaleEnrollRef.child(data.val().myAge + "/" + uid).set(true);
         }
       });
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Joined") {
@@ -69,90 +71,211 @@ proposeRef.on("child_added", function(snapshot, prevChildKey) {
   console.log("proposed: " + snapshot.key);
   snapshot.forEach(function(childSnapshot){
     console.log("proposed child: " + childSnapshot.key);
+
     childSnapshot.ref.on("child_changed", function(snapshot) {
       if (snapshot.key == "status" && snapshot.val() == "Like") {
-        console.log(snapshot.ref.parent.key);
+        console.log(snapshot.ref.parent.parent.key + " / " + snapshot.ref.parent.key);
+        matchCheck(snapshot.ref.parent.parent.key, snapshot.ref.parent.key);
       } else if (snapshot.key == "status" && snapshot.val() == "Dislike") {
         console.log(snapshot.ref.parent.key);
       }
     });
+
   });
 });
 
-function enrollerList(ref, opponentRef) {
-  //// enroller list
-  // [start enrolled/gender]
-  ref.once("value").then(function(snapshot) {
-    snapshot.forEach(function(childSnapshot) {
-      // age
-      //console.log("enroller age: " + childSnapshot.key);
-      childSnapshot.forEach(function(secChildSnapshot) {
-        // uid
-        //console.log("enroller uid: " + secChildSnapshot.key);
-        enrollerData(secChildSnapshot.key, opponentRef);
-      });
+function matchCheck(enrollerUid, opponentUid) {
+  var isFound = false;
+
+  proposeRef.child(opponentUid).once("value", function(snapshot){
+    console.log("matchCheck: " + snapshot.key);
+    snapshot.forEach(function(child){
+      console.log("matchCheck child: " + child.key);
+      if(child.key === enrollerUid){
+        if(child.child("status").val() === "Like") {
+          // Both user like each other
+          makeMatchMember(enrollerUid, opponentUid);
+          updateEnroll(enrollerUid, opponentUid);
+        }
+        isFound = true;
+      }
     });
-    // [end enrolled/male]
+    if(!isFound) {
+      sendProposeToOpponent(enrollerUid, opponentUid);
+    }
   });
 }
 
-function enrollerData(enrollerUid, opponentRef) {
+function makeMatchMember(enrollerUid, opponentUid) {
+  var newMatchMemberRef = matchMemberRef.push();
+  newMatchMemberRef.child(enrollerUid).set(true);
+  newMatchMemberRef.child(opponentUid).set(true);
+}
 
-  async.waterfall([
-    function(callback) {
-      //// enroller user data
-      // [start users/$enroller uid]
-      //console.log("enrollerData: " + enrollerUid);
-      userRef.child(enrollerUid).once("value").then(function(data) {
-        callback(null, data);
-      });
-    },
-    function(data, callback) {
-      // min max pref age
-      var minPrefAge = data.child("minPrefAge").val().toString();
-      var maxPrefAge = data.child("maxPrefAge").val().toString();
-      var enrollerAge = data.child("myAge").val();
+function updateEnroll(enrollerUid, opponentUid) {
+  proposeRef.child(opponentUid + "/" + enrollerUid).child("status").set("Matched");
+  proposeRef.child(enrollerUid + "/" + opponentUid).child("status").set("Matched");
+}
+
+function sendProposeToOpponent(enrollerUid, opponentUid) {
+  proposeRef.child(opponentUid + "/" + enrollerUid).set({
+    proposedAt: firebase.database.ServerValue.TIMESTAMP,
+    status: "Proposed"
+  }).then(function(){
+    userRef.child(enrollerUid).once("value").then(function(data) {
       var token = data.child("token").val();
-      console.log("enrollerData(second): " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + token);
-      opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, maxPrefAge, token, callback);
-    }
-  ], function(err, result) {
+      if(token != null){
+        sendFCMMessage();
+      }
+    });
+  }).catch(function(){
+    console.log('Synchronization failed');
+  });
+}
+
+function processPropose(ref) {
+  async.waterfall([
+    async.apply(generateEnrollerList, ref),
+    getUserDataList,
+    processEachEnrollerData,
+  ], function (err, result) {
     if(err != null) {
-      console.error("enrollerData err: " + err.toString());
+      console.error("processPropose err: " + err.toString());
     }
     if(result != null) {
-      console.log("end!!!! ");
-      sendFCMMessage(result);
+      console.log("end!!!! " + result);
     }
   });
 }
 
-function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, maxPrefAge, token, parentCallback) {
-  var query = opponentRef.orderByKey().startAt(minPrefAge).endAt(maxPrefAge);
-  var candidates = [];
-  var filteredCandidates = [];
-  var propose = [];
+function generateEnrollerList(ref, callback) {
+  var enrollerList = [];
 
-  async.waterfall([function(callback) {
-    query.once("value", function(snapshot) {
-      callback(null, snapshot);
-    }, function(err) {
-      callback(err, null);
-    });
-  }, function(snapshot, callback) {
-    snapshot.forEach(function(childSnapshot) {
-      // age
-      //console.log(enrollerUid + "' opposite gender enroller: " + childSnapshot.key);
-      childSnapshot.forEach(function(secondChildSnapshot) {
-        // uid
-        //console.log("foreach: " + secondChildSnapshot.key);
-        candidates.push(secondChildSnapshot.key);
+  ref.once("value").then(function(snapshot) {
+    snapshot.forEach(function(ageList) {
+      ageList.forEach(function(uidList) {
+        enrollerList.push(uidList.key);
       });
     });
-    console.log("foreach end: " + candidates);
+    
+    callback(null, enrollerList);
+  });
+}
 
+function getUserDataList(enrollerList, callback) {
+  var enrollerDataList = [];
+
+  async.each(enrollerList, function(enrollerUid, callback){
+    userRef.child(enrollerUid).once("value").then(function(data) {
+      enrollerDataList.push(data);
+      callback();
+    });
+  }, function(err) {
+    if(err == null){
+      callback(null, enrollerDataList); 
+    } else {
+      console.error(err);
+    }
+  });
+}
+
+function processEachEnrollerData(enrollerDataList, callback) {
+  async.each(enrollerDataList, function(enrollerData, callback) {
+
+    async.waterfall([
+      async.apply(findOpponentCandidate, enrollerData),
+      chooseThreePropose,
+    ], function (err, result) {
+      if(err != null) {
+        console.error("processEachEnrollerData err: " + err.toString());
+      } else {
+        console.error("processEachEnrollerData result");
+        if(result != null) {
+          console.log("send fcm to: " + result);
+          sendFCMMessage(result);
+        }
+        callback();
+      }
+    });
+  
+  }, function(err) {
+    if( err ) {
+      console.error("processEachEnrollerData err: " + err.toString());
+    } else {
+      console.log('processEachEnrollerData successfully');
+      callback(null, "succeess");
+    }
+  });
+}
+
+function findOpponentCandidate(enrollerData, rootCallback) {
+  var candidates = [];
+  var filteredCandidates = [];
+
+  var enrollerUid = enrollerData.key;
+  var minPrefAge = enrollerData.child("minPrefAge").val().toString();
+  var maxPrefAge = enrollerData.child("maxPrefAge").val().toString();
+  var enrollerAge = enrollerData.child("myAge").val();
+  var preferredGender = enrollerData.child("preferredGender").val();
+  var enrollerGender = enrollerData.child("gender").val();
+  var token = enrollerData.child("token").val();
+  
+  async.waterfall([function(parentCallback){
+    // search opponent
+    async.series(
+    [function(callback){
+      if(preferredGender === "male" || preferredGender === "both"){
+        console.log("male or both find: " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + enrollerGender + " / " + preferredGender + " / " + token);
+        
+        maleEnrollRef.orderByKey().startAt(minPrefAge).endAt(maxPrefAge).once("value", function(snapshot) {
+          console.log(enrollerUid + "(maleEnroller): " + snapshot.key);
+          callback(null, snapshot);
+        }, function(err) {
+          callback(err, null);
+        });
+        
+      } else {
+        callback(null, null);
+      }
+    }, function(callback){
+      if(preferredGender === "female" || preferredGender === "both"){
+        console.log("female or both find: " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + enrollerGender + " / " + preferredGender + " / " + token);
+        
+        femaleEnrollRef.orderByKey().startAt(minPrefAge).endAt(maxPrefAge).once("value", function(snapshot) {
+          console.log(enrollerUid + "(femaleEnroller): " + snapshot.key);
+          callback(null, snapshot);
+        }, function(err) {
+          callback(err, null);
+        });
+        
+      } else {
+        callback(null, null);
+      }
+    }], function(err, results){
+      if(err != null) {
+        console.error("findOpponentCandidate err: " + err.toString());
+      }
+      
+      var maleSnapshot = results[0];
+      var femaleSnapshot = results[1];
+      
+      console.log("start candidate list " + enrollerUid);
+      
+      if(maleSnapshot != null) {
+        generateCandidateList(maleSnapshot, candidates);
+      }
+      if(femaleSnapshot != null) {
+        generateCandidateList(femaleSnapshot, candidates);
+      }
+
+      console.log("end candidate list " + enrollerUid);
+
+      parentCallback(null, candidates);
+    });
+  }, function(candidates, secondParentCallback){
+    console.log("start filter candidate list " + enrollerUid);
     async.each(candidates, function(candidate, eachCallback){
-      //console.log("checkOpponentUserData: " + candidate + " / " + enrollerUid + " / " + enrollerAge);
+      console.log("filter candidate: " + candidate + " / " + enrollerUid + " / " + enrollerAge);
 
       async.series([
         function(callback) {
@@ -166,17 +289,20 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
           });
         },
       ], function(err, results) {
+        if(err != null) {
+          console.error("findOpponentCandidate err: " + err.toString());
+        }        
         // results is now equal to ['opponentUserData', 'proposeData']
         var opponentUserData = results[0];
         var proposeData = results[1];
 
-        //console.log(enrollerUid + " / " + enrollerAge + "' result: " + opponentUserData.child("minPrefAge").val() + " / " + opponentUserData.child("maxPrefAge").val() + "/" + !proposeData.child(candidate).exists());
-
-        // 1. check opponent pref age
+        // 1. check opponent pref age and pref gender
+        // 2. avoid duplication with past propose
         if (enrollerAge >= opponentUserData.child("minPrefAge").val() 
         && enrollerAge <= opponentUserData.child("maxPrefAge").val()
+        && enrollerGender === opponentUserData.child("preferredGender").val()
+        && preferredGender === opponentUserData.child("gender").val()
         && !proposeData.child(candidate).exists()) {
-          // 2. avoid duplication with past propose
           //console.log("accept range & dup: " + candidate);
           filteredCandidates.push(candidate);
         }
@@ -184,44 +310,69 @@ function opponentUserList(opponentRef, enrollerUid, enrollerAge, minPrefAge, max
       });
 
     }, function(err){
-      console.log("checkOpponentUserData: return: "+ filteredCandidates);
-      callback(null, filteredCandidates);
-    });    
-  }], function(err, result) {
-    if(err == null && result != null){
-      for (var i = 0; i < 3; i++) {
-        if(result.length <= 0) {
-          break;
-        }
-        var pick = Math.floor(Math.random() * result.length);
-        console.log("pick: " + pick + " / " + result.length + " / " + result[pick]);
-        propose.push(result[pick])
-        result.splice(pick, 1);
-      }
-      console.log("last: " + enrollerUid + " / " + propose.length + " / " + propose);
-      for (var i = 0; i < propose.length; i++) {
-        proposeRef.child(enrollerUid + "/" + propose[i]).set({
-          proposedAt: firebase.database.ServerValue.TIMESTAMP,
-          status: "Proposed"
-        });
-      }
-    } else if(err != null){
-      console.log(err);
+      if(err != null) {
+        console.error("findOpponentCandidate err: " + err.toString());
+      }      
+      console.log("end filter candidate list: " + enrollerUid + " / " + filteredCandidates);
+      secondParentCallback(null, filteredCandidates);
+    });
+  }],function(err, result) {
+    if(err != null) {
+      console.error("findOpponentCandidate err: " + err.toString());
     }
-    parentCallback(null, token);
+    // chooseThreePropose
+    rootCallback(null, filteredCandidates, enrollerUid, token);
   });
 }
 
+function generateCandidateList(snapshot, candidates) {
+  snapshot.forEach(function(childSnapshot) {
+    childSnapshot.forEach(function(secondChildSnapshot) {
+      candidates.push(secondChildSnapshot.key);
+    });
+  });
+  console.log("foreach end: " + candidates);
+}
+
+function chooseThreePropose(candidates, enrollerUid, token, callback) {
+  var results = [];
+  
+  if(candidates != null) {
+    for (var i = 0; i < 3; i++) {
+      if(candidates.length <= 0) {
+        break;
+      }
+      var pick = Math.floor(Math.random() * candidates.length);
+      console.log("pick: " + pick + " / " + candidates.length + " / " + candidates[pick]);
+      results.push(candidates[pick])
+      candidates.splice(pick, 1);
+    }
+    
+    for (var i = 0; i < results.length; i++) {
+      proposeRef.child(enrollerUid + "/" + results[i]).set({
+        proposedAt: firebase.database.ServerValue.TIMESTAMP,
+        status: "Proposed"
+      });
+    }
+  }
+  
+  //processEachEnrollerData's waterfall result
+  callback(null, token);
+}
+
 setTimeout(function() {
-  enrollerList(maleEnrollRef, femaleEnrolleRef);
-  //getEnrolledByGender(femaleEnrolleRef, maleEnrollRef);
+  //processPropose(maleEnrollRef);
+
+  // setTimeout(function() {
+  //   processPropose(femaleEnrollRef);
+  // }, 5000);
 
   // setInterval(function(){
-  //   getEnrolledByGender(maleEnrollRef, femaleEnrolleRef);
-  //   getEnrolledByGender(femaleEnrolleRef, maleEnrollRef);
+  //   getEnrolledByGender(maleEnrollRef, femaleEnrollRef);
+  //   getEnrolledByGender(femaleEnrollRef, maleEnrollRef);
   // }, 86400000 );
 
-}, 10000 /*getIntervalByNoon()*/ );
+}, 5000 /*getIntervalByNoon()*/ );
 
 function getIntervalByNoon() {
   var today = new Date();

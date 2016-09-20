@@ -1,10 +1,10 @@
 {
-  "name": "appengine-hello-world",
-  "description": "Simple Hello World Node.js sample for Google App Engine",
+  "name": "moviting-srv",
+  "description": "Moviting firebase backend",
   "version": "0.0.1",
   "private": true,
   "license": "Apache Version 2.0",
-  "author": "Google Inc.",
+  "author": "Healing Society",
   "engines": {
     "node": "~4.2"
   },
