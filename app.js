@@ -30,10 +30,10 @@ firebase.initializeApp({
 
 var db = firebase.database();
 var userRef = db.ref("users");
-var maleEnrollRef = db.ref("enroll/male");
-var femaleEnrollRef = db.ref("enroll/female");
+var maleEnrollRef = db.ref("enroller/male");
+var femaleEnrollRef = db.ref("enroller/female");
 var proposeRef = db.ref("propose");
-var matchMemberRef = db.ref("match_member");
+var matchMemberPaymentRef = db.ref("match_member_payment");
 var matchChatRef = db.ref("match_chat");
 var userMatchRef = db.ref("user_match");
 
@@ -49,6 +49,7 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
     // userStatus && Enrolled
     if (snapshot.key == "userStatus" && snapshot.val() == "Enrolled") {
       console.log("child_changed: " + snapshot.val());
+      
       snapshot.ref.parent.once("value", function(data) {
         console.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge);
         if (data.val().gender == "male") {
@@ -61,6 +62,17 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
       });
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Joined") {
       console.log("child_changed: " + snapshot.val());
+      
+      snapshot.ref.parent.once("value", function(data) {
+        console.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge);
+        if (data.val().gender == "male") {
+          var uid = data.key;
+          maleEnrollRef.child(data.val().myAge + "/" + uid).remove();
+        } else {
+          var uid = data.key;
+          femaleEnrollRef.child(data.val().myAge + "/" + uid).remove();
+        }
+      });
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Matched") {
       console.log("child_changed: " + snapshot.val());
     }
@@ -109,7 +121,7 @@ function checkMatch(enrollerUid, opponentUid) {
 }
 
 function makeMatchMember(enrollerUid, opponentUid) {
-  var newMatchMemberRef = matchMemberRef.push();
+  var newMatchMemberRef = matchMemberPaymentRef.push();
   newMatchMemberRef.child(enrollerUid).child("payment").set(false);
   newMatchMemberRef.child(opponentUid).child("payment").set(false);
   userMatchRef.child(enrollerUid).child(newMatchMemberRef.key).set(true);
@@ -227,7 +239,9 @@ function findOpponentCandidate(enrollerData, rootCallback) {
   var preferredGender = enrollerData.child("preferredGender").val();
   var enrollerGender = enrollerData.child("gender").val();
   var token = enrollerData.child("token").val();
-  
+  var enrollerDate = enrollerData.child("preferredDate").val();
+  var enrollerMovie = enrollerData.child("preferredMovie").val();
+
   async.waterfall([function(parentCallback){
     // search opponent
     async.series(
@@ -304,12 +318,12 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         var opponentUserData = results[0];
         var proposeData = results[1];
 
-        // 1. check opponent pref age and pref gender
+        // 1. check opponent pref age, gender, date, movie
         // 2. avoid duplication with past propose
-        if (enrollerAge >= opponentUserData.child("minPrefAge").val() 
-        && enrollerAge <= opponentUserData.child("maxPrefAge").val()
-        && enrollerGender === opponentUserData.child("preferredGender").val()
-        && preferredGender === opponentUserData.child("gender").val()
+        if (checkAge(enrollerAge, opponentUserData.child("minPrefAge").val(), opponentUserData.child("maxPrefAge").val())
+        && checkGender(enrollerGender, opponentUserData.child("preferredGender").val())
+        && checkDate(enrollerDate, opponentUserData.child("preferredDate").val())
+        && chekcMovie(enrollerMovie, opponentUserData.child("preferredMovie").val())
         && !proposeData.child(candidate).exists()) {
           //console.log("accept range & dup: " + candidate);
           filteredCandidates.push(candidate);
@@ -331,6 +345,40 @@ function findOpponentCandidate(enrollerData, rootCallback) {
     // chooseThreePropose
     rootCallback(null, filteredCandidates, enrollerUid, token);
   });
+}
+
+function checkAge(enrollerAge, opponentMinPref, opponentMaxPref) {
+  if(enrollerAge >= opponentMinPref && enrollerAge <= opponentMaxPref){
+    return true;
+  } else {
+    return false;
+  }
+}
+
+function checkGender(enrollerGender, opponentPrefGender) {
+    if(enrollerGender === opponentPrefGender || opponentPrefGender === "both") {
+      return true;
+    } else {
+      return false;
+    }
+}
+
+function checkDate(enrollerDate, opponentDate) {
+  for(date in enrollerDate) {
+    if(opponentDate.indexOf(date) != -1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function checkMovie(enrollerMovie, opponentMovie) {
+  for(movie in enrollerMovie) {
+    if(opponentMovie.indexOf(movie) != -1) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function generateCandidateList(snapshot, candidates) {
