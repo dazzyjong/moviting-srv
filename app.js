@@ -36,9 +36,15 @@ var proposeRef = db.ref("propose");
 var matchMemberPaymentRef = db.ref("match_member_payment");
 var matchChatRef = db.ref("match_chat");
 var userMatchRef = db.ref("user_match");
+var matchTicket = db.ref("match_ticket");
+var userCoupon = db.ref("user_coupon");
+var userPoint = db.ref("user_point");
+var ticketPullRef = db.ref("ticket_pull");
 
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
+var HashMap = require('hashmap');
+var timerMap = new HashMap();
 
 //listener of user added
 userRef.on("child_added", function(snapshot, prevChildKey) {
@@ -60,7 +66,7 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
           femaleEnrollRef.child(data.val().myAge + "/" + uid).set(true);
         }
       });
-    } else if (snapshot.key == "userStatus" && snapshot.val() == "Joined") {
+    } else if (snapshot.key == "userStatus" && snapshot.val() == "Disenrolled") {
       console.log("child_changed: " + snapshot.val());
       
       snapshot.ref.parent.once("value", function(data) {
@@ -75,8 +81,39 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
       });
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Matched") {
       console.log("child_changed: " + snapshot.val());
+    } else if(snapshot.key == "gender" && snapshot.val() == "female") {
+      var newCoupon = userCoupon.child(snapshot.ref.parent.key).push();
+          newCoupon.child("kind").set("1회 영화관람 이용권");
+          newCoupon.child("used").set(false);
+      userRef.child(snapshot.ref.parent.key).once("value", function(data){
+        console.log(data.val());
+        //sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
+      });
     }
   });
+});
+
+var couponLoaded = false;
+userCoupon.on("child_added", function(snapshot){
+  if(couponLoaded == true) {
+    console.log("new userCoupon child_added: " + snapshot.key);
+    userRef.child(snapshot.key).child("token").once("value", function(data){
+      sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
+    });
+  } else {
+    console.log("userCoupon child_added: " + snapshot.key);
+    userCoupon.child(snapshot.key).on("child_changed", function(snapshot){
+      console.log("another userCoupon added: " + snapshot.ref.parent.key);
+      userRef.child(snapshot.ref.parent.key).child("token").once("value", function(data){
+        sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
+      });
+    });
+  }
+}); 
+
+userCoupon.once("value", function(snapshot){
+  couponLoaded = true;
+  console.log("userCoupon once value: " + snapshot.key);
 });
 
 // listner of propose
@@ -96,6 +133,200 @@ proposeRef.on("child_added", function(snapshot, prevChildKey) {
 
   });
 });
+
+matchMemberPaymentRef.once('value', function(data) {
+  var loadingData = data.numChildren();
+
+  var queryForChildAdded = matchMemberPaymentRef.orderByKey();
+  queryForChildAdded.on('child_added', function(data) {
+    var payments = [false, false];
+    var childs = [];
+    var tokens = [];
+    var i = 0;
+    
+    console.log("queryForChildAdded " + loadingData + " " + data.key);
+
+    if(loadingData != 0){
+      loadingData = --loadingData;
+    } else if(loadingData == 0 ) {
+      data.forEach(function(child){
+        payments[i] = child.val().payment;
+        childs[i] = child.key;
+        i++;
+      });
+
+      childs.forEach(function(item, index){
+        userRef.child(item).child("token").once("value").then(function(token) {
+          if(!payments[0] && !payments[1]) {
+            tokens[index] = token.val();
+            sendFCMMessage(tokens[index], "상대와 매치되었습니다!");
+          }
+        });
+      });
+      setTimer(data.key);
+    }
+  });
+});
+
+var queryForChildChanged = matchMemberPaymentRef.orderByKey();
+queryForChildChanged.on('child_changed', function(data) {
+  console.log(data.key);
+  var payments = [];
+  var childs = [];
+  var i = 0;
+  var ticket;
+  
+  data.forEach(function(child){
+    if(child.val().type != "" && child.val().payment == true ) {
+      console.log(child.key + " " + child.val().payment + " " + child.val().type);
+      payments[i] = child.val().payment;
+      childs[i] = child.key;
+      i++;
+    }
+  });
+
+  console.log(payments[0] + " " + payments[1] + " " + childs[0] + " " + childs[1] ); 
+
+  if(payments[0] != undefined && payments[1] !=undefined && childs[0] !=undefined && childs[1] !=undefined){
+    if(payments[0] && payments[1]) {
+      async.waterfall([ function(callback) {
+        userRef.child(childs[0]).child("token").once("value").then(function(token) {
+          console.log("token " + token.val());
+          
+          ticketPullRef.orderByKey().limitToFirst(1).once("value", function(snapshot) {
+            snapshot.forEach(function(child) {
+              ticket = child.val();
+              child.ref.remove(function(error){
+                console.log("removed");
+                console.log("assignMovieTicket" + ticket);
+                matchTicket.child(data.key).child(childs[0]).child(ticket).child("screening").set(true, function(error){
+                callback(null);
+            });
+              });
+            });
+          });
+
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 채팅방이 개설되었습니다.");
+          releaseTimer(data.key);
+        })}, 
+        function(callback) {
+          userRef.child(childs[1]).child("token").once("value").then(function(token) {
+            console.log("token " + token.val());
+
+            ticketPullRef.orderByKey().limitToFirst(1).once("value", function(snapshot) {
+              snapshot.forEach(function(child) {
+                ticket = child.val();
+                child.ref.remove(function(error){
+                  console.log("removed");
+                  console.log("assignMovieTicket" + ticket);
+                  matchTicket.child(data.key).child(childs[1]).child(ticket).child("screening").set(true, function(error){
+                    callback(null, null);
+                  });                  
+                });
+              });
+            });
+
+            sendFCMMessage(token.val(), "상대방이 결제하였습니다. 채팅방이 개설되었습니다.");
+            releaseTimer(data.key);
+          })}], function(err, result){
+
+        });
+    } else if(payments[0] && !payments[1]) {
+      userRef.child(childs[1]).child("token").once("value").then(function(token) {
+          console.log("token " + token.val());
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 결제시 채팅방이 개설됩니다.");
+          releaseTimer(data.key);
+          setTimer(data.key);
+        });
+    } else if(!payments[0] && payments[1]) {
+      userRef.child(childs[0]).child("token").once("value").then(function(token) {
+          console.log("token " + token.val());
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 결제시 채팅방이 개설됩니다.");
+          releaseTimer(data.key);
+          setTimer(data.key);
+        }); 
+    }
+  }
+});
+
+matchMemberPaymentRef.on('child_removed', function(data) {
+  data.key; data.val();
+});
+
+function assignMovieTicket(matchuid, uid) {
+  
+
+}
+
+matchChatRef.on('child_added', function(data) {
+  var initialChatLoaded = false;
+  console.log("match_chat" + data.key);
+
+  matchChatRef.child(data.key).on('child_added', function(child) {
+    if (initialChatLoaded) {    
+      console.log("match_chat added after loaded: " + data.key + " " + child.key);
+      matchMemberPaymentRef.child(data.key).once('value', function(snapshot) {
+        console.log("match_chat addedafter loaded: " + child.val().message + " " + child.val().uid);
+        var message = child.val().message;
+        var senderUid = child.val().uid;
+        var receiveUid; 
+        
+        snapshot.forEach(function(child) {
+          if(child.key != senderUid) {
+              receiveUid = child.key;
+          }
+        });
+        
+        console.log("match_chat changed: " + receiveUid);
+
+        userRef.child(receiveUid).child("token").once("value", function(token) {
+          console.log("sendFCMMessage: " + token.val());
+          sendFCMMessage(token.val(), message);
+        });
+      });
+    }
+  });
+
+  matchChatRef.child(data.key).once('value', function(snapshot) {
+    initialChatLoaded = true;
+  });
+});
+
+function setTimer(matchUid) {
+  console.log("setTimer: " + matchUid);
+  var timer = setTimeout(function() {
+    console.log("Timer expired");
+    rollback(matchUid);
+  } , 100000);
+  timerMap.set(matchUid, timer);
+}
+
+function releaseTimer(matchUid) {
+  console.log("releaseTimer: " + matchUid);
+  var timer = timerMap.get(matchUid);
+  clearTimeout(timer);
+}
+
+function rollback(matchUid) {
+  matchMemberPaymentRef.child(matchUid).once('value', function(data) {
+    
+    data.forEach(function(child){
+      var payment = child.val().payment;
+      var type = child.val().type;
+
+      if (payment == true) {
+        if(type == "cash") {
+          userPoint.child(child.key).set(20000);
+        } else if(type = "coupon") {
+          var newCoupon = userCoupon.child(child.key).push();
+          newCoupon.child("kind").set("1회 영화관람 이용권");
+          newCoupon.child("used").set(false);
+        }
+      }
+      userMatchRef.child(child.key).child(matchUid).set(false);
+    });
+  });
+}
 
 function checkMatch(enrollerUid, opponentUid) {
   var isFound = false;
@@ -124,11 +355,11 @@ function makeMatchMember(enrollerUid, opponentUid) {
   var newMatchMemberRef = matchMemberPaymentRef.push();
   newMatchMemberRef.child(enrollerUid).child("payment").set(false);
   newMatchMemberRef.child(opponentUid).child("payment").set(false);
+  newMatchMemberRef.child(enrollerUid).child("type").set("");
+  newMatchMemberRef.child(opponentUid).child("type").set("");
   userMatchRef.child(enrollerUid).child(newMatchMemberRef.key).set(true);
   userMatchRef.child(opponentUid).child(newMatchMemberRef.key).set(true);
-  var newMatchChatRef = matchChatRef.child(newMatchMemberRef.key).push();
-  newMatchChatRef.child("uid").set("");
-  newMatchChatRef.child("message").set("test");
+
   console.log("makeMatchMember" + newMatchMemberRef.toString());
 }
 
@@ -454,7 +685,7 @@ function sendFCMMessage(token, messageBody) {
   var message = {
     to: token,
     collapse_key:"moviting-propose",
-    notification: {
+    data: {
       title: messageBody,
       body: messageBody
     }
@@ -474,6 +705,7 @@ userRef.on("child_removed", function(snapshot) {
   console.log("child_removed: " + snapshot.val());
 });
 
-setInterval(function() {
-  console.log("alive");
-}, 10000);
+setInterval(
+  function() {
+    console.log("alive");
+  }, 60000);
