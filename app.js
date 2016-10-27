@@ -253,11 +253,6 @@ matchMemberPaymentRef.on('child_removed', function(data) {
   data.key; data.val();
 });
 
-function assignMovieTicket(matchuid, uid) {
-  
-
-}
-
 matchChatRef.on('child_added', function(data) {
   var initialChatLoaded = false;
   console.log("match_chat" + data.key);
@@ -297,7 +292,7 @@ function setTimer(matchUid) {
   var timer = setTimeout(function() {
     console.log("Timer expired");
     rollback(matchUid);
-  } , 100000);
+  } , 21600000);
   timerMap.set(matchUid, timer);
 }
 
@@ -648,18 +643,16 @@ function chooseThreePropose(candidates, enrollerUid, token, callback) {
 }
 
 setTimeout(function() {
-  //processPropose(maleEnrollRef);
 
-  // setTimeout(function() {
-  //   processPropose(femaleEnrollRef);
-  // }, 5000);
+  setInterval(function(){
+    processPropose(maleEnrollRef);
 
-  // setInterval(function(){
-  //   getEnrolledByGender(maleEnrollRef, femaleEnrollRef);
-  //   getEnrolledByGender(femaleEnrollRef, maleEnrollRef);
-  // }, 86400000 );
+    setTimeout(function() {
+      processPropose(femaleEnrollRef);
+    }, 5000);
+  }, 86400000 );
 
-}, 5000 /*getIntervalByNoon()*/ );
+}, getIntervalByNoon() );
 
 function getIntervalByNoon() {
   var today = new Date();
@@ -669,16 +662,60 @@ function getIntervalByNoon() {
       today.getMonth(),
       today.getDate() + 1,
       12, 0, 0, 0);
-    console.log("tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
+    console.log("getIntervalByNoon tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
     return tomorrowNoon.getTime() - today.getTime();
   } else {
     var todayNoon = new Date(today.getFullYear(),
       today.getMonth(),
       today.getDate(),
       12, 0, 0, 0);
-    console.log("today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
+    console.log("getIntervalByNoon today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
     return todayNoon.getTime() - today.getTime();
   }
+}
+
+function removePreviousDate() {
+userRef.once('value', function(snapshot) {
+  snapshot.forEach(function(child) {
+    child.forEach(function(grandChild) {
+      if (grandChild.key == 'preferredDate') {
+        grandChild.ref.orderByValue().once('value', function(snapshot) {
+          console.log("-----------------------------");
+          var newDate = [];
+          snapshot.forEach(function(child) {
+            var today = new Date();
+            var d = new Date(child.val());
+            if(d.getTime() > today.getTime()) {
+              newDate.push(child.val());
+            }            
+          });
+          console.log(newDate);
+          grandChild.ref.set(newDate);
+        });
+      }
+    });
+  });
+});
+
+}
+
+setTimeout(function() {
+  removePreviousDate();
+  setInterval(function(){
+    removePreviousDate();
+  }, 86400000 );
+
+}, getIntervalByMidNight() );
+
+function getIntervalByMidNight() {
+  var today = new Date();
+  
+  var tomorrowNoon = new Date(today.getFullYear(),
+    today.getMonth(),
+    today.getDate() + 1,
+    0, 0, 0, 0);
+  console.log("getIntervalByMidNight tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
+  return tomorrowNoon.getTime() - today.getTime();
 }
 
 function sendFCMMessage(token, messageBody) {
