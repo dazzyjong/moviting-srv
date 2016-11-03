@@ -175,6 +175,7 @@ queryForChildChanged.on('child_changed', function(data) {
   var childs = [];
   var i = 0;
   var ticket;
+  var expiration_date;
   
   data.forEach(function(child){
     if(child.val().type != "" && child.val().payment == true ) {
@@ -195,13 +196,15 @@ queryForChildChanged.on('child_changed', function(data) {
           
           ticketPullRef.orderByKey().limitToFirst(1).once("value", function(snapshot) {
             snapshot.forEach(function(child) {
-              ticket = child.val();
+              ticket = child.val().ticket_id;
+              expiration_date = child.val().expiration_date;
               child.ref.remove(function(error){
                 console.log("removed");
                 console.log("assignMovieTicket" + ticket);
+                matchTicket.child(data.key).child(childs[0]).child(ticket).child("expiration_date").set(expiration_date);
                 matchTicket.child(data.key).child(childs[0]).child(ticket).child("screening").set(true, function(error){
-                callback(null);
-            });
+                  callback(null);
+                });
               });
             });
           });
@@ -215,10 +218,12 @@ queryForChildChanged.on('child_changed', function(data) {
 
             ticketPullRef.orderByKey().limitToFirst(1).once("value", function(snapshot) {
               snapshot.forEach(function(child) {
-                ticket = child.val();
+                ticket = child.val().ticket_id;
+                expiration_date = child.val().expiration_date;
                 child.ref.remove(function(error){
                   console.log("removed");
                   console.log("assignMovieTicket" + ticket);
+                  matchTicket.child(data.key).child(childs[1]).child(ticket).child("expiration_date").set(expiration_date);
                   matchTicket.child(data.key).child(childs[1]).child(ticket).child("screening").set(true, function(error){
                     callback(null, null);
                   });                  
