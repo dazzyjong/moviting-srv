@@ -139,38 +139,13 @@ matchMemberPaymentRef.once('value', function(data) {
 
   var queryForChildAdded = matchMemberPaymentRef.orderByKey();
   queryForChildAdded.on('child_added', function(data) {
-    var payments = [false, false];
-    var childs = [];
-    var tokens = [];
-    var i = 0;
-    
     console.log("queryForChildAdded " + loadingData + " " + data.key);
-
-    if(loadingData != 0){
-      loadingData = --loadingData;
-    } else if(loadingData == 0 ) {
-      data.forEach(function(child){
-        payments[i] = child.val().payment;
-        childs[i] = child.key;
-        i++;
-      });
-
-      childs.forEach(function(item, index){
-        userRef.child(item).child("token").once("value").then(function(token) {
-          if(!payments[0] && !payments[1]) {
-            tokens[index] = token.val();
-            sendFCMMessage(tokens[index], "상대와 매치되었습니다!");
-          }
-        });
-      });
-      setTimer(data.key);
-    }
   });
 });
 
 var queryForChildChanged = matchMemberPaymentRef.orderByKey();
 queryForChildChanged.on('child_changed', function(data) {
-  console.log(data.key);
+  console.log("queryForChildChanged" + data.key + " " + data.val());
   var payments = [];
   var childs = [];
   var i = 0;
@@ -178,12 +153,10 @@ queryForChildChanged.on('child_changed', function(data) {
   var expiration_date;
   
   data.forEach(function(child){
-    if(child.val().type != "" && child.val().payment == true ) {
       console.log(child.key + " " + child.val().payment + " " + child.val().type);
       payments[i] = child.val().payment;
       childs[i] = child.key;
       i++;
-    }
   });
 
   console.log(payments[0] + " " + payments[1] + " " + childs[0] + " " + childs[1] ); 
@@ -250,6 +223,18 @@ queryForChildChanged.on('child_changed', function(data) {
           releaseTimer(data.key);
           setTimer(data.key);
         }); 
+    } else if(!payments[0] && !payments[1]) {
+      childs.forEach(function(item, index){
+        userRef.child(item).child("token").once("value").then(function(token) {
+          if(!payments[0] && !payments[1]) {
+            var tokens = [];
+            tokens[index] = token.val();
+            console.log("queryForChildAdded " + tokens[index]);
+            sendFCMMessage(tokens[index], "상대와 매치되었습니다!");
+          }
+        });
+      });
+      setTimer(data.key);
     }
   }
 });
@@ -353,6 +338,8 @@ function checkMatch(enrollerUid, opponentUid) {
 
 function makeMatchMember(enrollerUid, opponentUid) {
   var newMatchMemberRef = matchMemberPaymentRef.push();
+  var data = {payment : false,
+              type : "" }; 
   newMatchMemberRef.child(enrollerUid).child("payment").set(false);
   newMatchMemberRef.child(opponentUid).child("payment").set(false);
   newMatchMemberRef.child(enrollerUid).child("type").set("");
