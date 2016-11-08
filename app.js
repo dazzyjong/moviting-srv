@@ -554,7 +554,7 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         if (checkAge(enrollerAge, opponentUserData.child("minPrefAge").val(), opponentUserData.child("maxPrefAge").val())
         && checkGender(enrollerGender, opponentUserData.child("preferredGender").val())
         && checkDate(enrollerDate, opponentUserData.child("preferredDate").val())
-        && chekcMovie(enrollerMovie, opponentUserData.child("preferredMovie").val())
+        && checkMovie(enrollerMovie, opponentUserData.child("preferredMovie").val())
         && !proposeData.child(candidate).exists()) {
           //console.log("accept range & dup: " + candidate);
           filteredCandidates.push(candidate);
@@ -595,20 +595,35 @@ function checkGender(enrollerGender, opponentPrefGender) {
 }
 
 function checkDate(enrollerDate, opponentDate) {
-  for(date in enrollerDate) {
-    if(opponentDate.indexOf(date) != -1) {
-      return true;
-    }
+  var i, j;
+  var enrDateLen = enrollerDate.length;
+  var oppDateLen = opponentDate.length;
+
+
+  for (i = 0; i < enrDateLen; i++) {
+      for (j = 0; j < oppDateLen; j++) {
+          if (enrollerDate[i] === opponentDate[j]) {
+              return true;
+          }
+      }
   }
+
   return false;
 }
 
 function checkMovie(enrollerMovie, opponentMovie) {
-  for(movie in enrollerMovie) {
-    if(opponentMovie.indexOf(movie) != -1) {
-      return true;
-    }
+  var i, j;
+  var enrMovieLen = enrollerMovie.length;
+  var oppMovieLen = opponentMovie.length;
+
+  for (i = 0; i < enrMovieLen; i++) {
+      for (j = 0; j < oppMovieLen; j++) {
+          if (enrollerMovie[i] === opponentMovie[j]) {
+              return true;
+          }
+      }
   }
+
   return false;
 }
 
@@ -644,7 +659,11 @@ function chooseThreePropose(candidates, enrollerUid, token, callback) {
   }
   
   //processEachEnrollerData's waterfall result
-  callback(null, token);
+  if(results.length > 0) {
+    callback(null, token);
+  } else {
+    callback(null, null);
+  }
 }
 
 setTimeout(function() {
@@ -655,7 +674,7 @@ setTimeout(function() {
     setTimeout(function() {
       processPropose(femaleEnrollRef);
     }, 5000);
-  }, 86400000 );
+  }, 60000/*86400000*/ );
 
 }, getIntervalByNoon() );
 
@@ -665,15 +684,18 @@ function getIntervalByNoon() {
   if (todayHours >= 12) {
     var tomorrowNoon = new Date(today.getFullYear(),
       today.getMonth(),
-      today.getDate() + 1,
-      12, 0, 0, 0);
+      today.getDate(),
+      today.getHours(), today.getMinutes()+1, 0, 0);
+      //today.getDate() + 1,
+      //12, 0, 0, 0);
     console.log("getIntervalByNoon tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
     return tomorrowNoon.getTime() - today.getTime();
   } else {
     var todayNoon = new Date(today.getFullYear(),
       today.getMonth(),
       today.getDate(),
-      12, 0, 0, 0);
+      today.getHours(), today.getMinutes()+1, 0, 0);
+      // 12, 0, 0, 0);
     console.log("getIntervalByNoon today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
     return todayNoon.getTime() - today.getTime();
   }
