@@ -103,10 +103,12 @@ userCoupon.on("child_added", function(snapshot){
   } else {
     console.log("userCoupon child_added: " + snapshot.key);
     userCoupon.child(snapshot.key).on("child_changed", function(snapshot){
-      console.log("another userCoupon added: " + snapshot.ref.parent.key);
-      userRef.child(snapshot.ref.parent.key).child("token").once("value", function(data){
-        sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
-      });
+      if(snapshot.val().used == false) {
+        console.log("another userCoupon added: " + snapshot.ref.parent.key);
+        userRef.child(snapshot.ref.parent.key).child("token").once("value", function(data){
+          sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
+        });
+      }
     });
   }
 }); 
@@ -114,6 +116,32 @@ userCoupon.on("child_added", function(snapshot){
 userCoupon.once("value", function(snapshot){
   couponLoaded = true;
   console.log("userCoupon once value: " + snapshot.key);
+});
+
+/////////////////////////////////////////////////////////////////////////////////////////
+var pointLoaded = false;
+userPoint.on("child_added", function(snapshot){
+  if(pointLoaded == true) {
+    console.log("new userPoint child_added: " + snapshot.key);
+    userRef.child(snapshot.key).child("token").once("value", function(data){
+      sendFCMMessage(data.val(), "크레딧이 충전되었습니다.");
+    });
+  } else {
+    console.log("userPoint child_added: " + snapshot.key);
+    userPoint.on("child_changed", function(snapshot){
+      if(snapshot.val() > 0) {
+        console.log("another userPoint added: " + snapshot.key);
+        userRef.child(snapshot.key).child("token").once("value", function(data){
+          sendFCMMessage(data.val(), "크레딧이 충전되었습니다.");
+        });
+      }
+    });
+  }
+}); 
+
+userPoint.once("value", function(snapshot){
+  pointLoaded = true;
+  console.log("userPoint once value: " + snapshot.key);
 });
 
 // listner of propose
@@ -147,6 +175,7 @@ var queryForChildChanged = matchMemberPaymentRef.orderByKey();
 queryForChildChanged.on('child_changed', function(data) {
   console.log("queryForChildChanged" + data.key + " " + data.val());
   var payments = [];
+  var type = [];
   var childs = [];
   var i = 0;
   var ticket;
@@ -155,6 +184,7 @@ queryForChildChanged.on('child_changed', function(data) {
   data.forEach(function(child){
       console.log(child.key + " " + child.val().payment + " " + child.val().type);
       payments[i] = child.val().payment;
+      type[i] = child.val().type;
       childs[i] = child.key;
       i++;
   });
@@ -162,7 +192,8 @@ queryForChildChanged.on('child_changed', function(data) {
   console.log(payments[0] + " " + payments[1] + " " + childs[0] + " " + childs[1] ); 
 
   if(payments[0] != undefined && payments[1] !=undefined && childs[0] !=undefined && childs[1] !=undefined){
-    if(payments[0] && payments[1]) {
+    if(payments[0] && payments[1] && type[0].length != 0 && type[1].length != 0) {
+      console.log("start chat");
       async.waterfall([ function(callback) {
         userRef.child(childs[0]).child("token").once("value").then(function(token) {
           console.log("token " + token.val());
@@ -205,9 +236,15 @@ queryForChildChanged.on('child_changed', function(data) {
             });
 
             sendFCMMessage(token.val(), "상대방이 결제하였습니다. 채팅방이 개설되었습니다.");
-            releaseTimer(data.key);
+            releaseTimer(data.key);          
           })}], function(err, result){
+            var welcomMessage = { 
+              message : "채팅방이 개설되었습니다. 영화표는 영화티켓함에서 확인 가능합니다. 예매는 한 분이 진행할 수 있도록 협의 후 상대방에게 전달해주세요. (쿠폰사용자에겐 전달 불가. 채팅방 오른쪽 위 메뉴 이용)",
+              uid : "admin"
+            };
 
+            matchChatRef.child(data.key).push().set(welcomMessage);   
+            console.log("end chat");
         });
     } else if(payments[0] && !payments[1]) {
       userRef.child(childs[1]).child("token").once("value").then(function(token) {
@@ -340,10 +377,9 @@ function makeMatchMember(enrollerUid, opponentUid) {
   var newMatchMemberRef = matchMemberPaymentRef.push();
   var data = {payment : false,
               type : "" }; 
-  newMatchMemberRef.child(enrollerUid).child("payment").set(false);
-  newMatchMemberRef.child(opponentUid).child("payment").set(false);
-  newMatchMemberRef.child(enrollerUid).child("type").set("");
-  newMatchMemberRef.child(opponentUid).child("type").set("");
+  newMatchMemberRef.child(enrollerUid).set(data);
+  newMatchMemberRef.child(opponentUid).set(data);
+  
   userMatchRef.child(enrollerUid).child(newMatchMemberRef.key).set(true);
   userMatchRef.child(opponentUid).child(newMatchMemberRef.key).set(true);
 
@@ -689,28 +725,27 @@ function getIntervalByNoon() {
 }
 
 function removePreviousDate() {
-userRef.once('value', function(snapshot) {
-  snapshot.forEach(function(child) {
-    child.forEach(function(grandChild) {
-      if (grandChild.key == 'preferredDate') {
-        grandChild.ref.orderByValue().once('value', function(snapshot) {
-          console.log("-----------------------------");
-          var newDate = [];
-          snapshot.forEach(function(child) {
-            var today = new Date();
-            var d = new Date(child.val());
-            if(d.getTime() > today.getTime()) {
-              newDate.push(child.val());
-            }            
+  userRef.once('value', function(snapshot) {
+    snapshot.forEach(function(child) {
+      child.forEach(function(grandChild) {
+        if (grandChild.key == 'preferredDate') {
+          grandChild.ref.orderByValue().once('value', function(snapshot) {
+            console.log("-----------------------------");
+            var newDate = [];
+            snapshot.forEach(function(child) {
+              var today = new Date();
+              var d = new Date(child.val());
+              if(d.getTime() > today.getTime()) {
+                newDate.push(child.val());
+              }            
+            });
+            console.log(newDate);
+            grandChild.ref.set(newDate);
           });
-          console.log(newDate);
-          grandChild.ref.set(newDate);
-        });
-      }
+        }
+      });
     });
   });
-});
-
 }
 
 setTimeout(function() {
