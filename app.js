@@ -239,7 +239,7 @@ queryForChildChanged.on('child_changed', function(data) {
             releaseTimer(data.key);          
           })}], function(err, result){
             var welcomMessage = { 
-              message : "채팅방이 개설되었습니다. 영화표는 영화티켓함에서 확인 가능합니다. 예매는 한 분이 진행할 수 있도록 협의 후 상대방에게 전달해주세요. (쿠폰사용자에겐 전달 불가. 채팅방 오른쪽 위 메뉴 이용)",
+              message : "1. 약속 잡기\n: 설레는 영화관람을 위해 상영관, 시간, 일자 등 정확한 약속을 잡으세요\n\n2. 티켓 교환\n: 상단에 위치한 '티켓 건네주기' 기능을 통해 함께 앉아야 하므로 예매를 위해 한사람에게 티켓을 건네주세요(이벤트 쿠폰 결제자는 예매가 불가능해요)\n\n3. 티켓 예매\n: 영화티켓함 내 건네받은 티켓정보 및 사용방법을 통해 영화를 예매하세요",
               uid : "admin"
             };
 
@@ -249,14 +249,14 @@ queryForChildChanged.on('child_changed', function(data) {
     } else if(payments[0] && !payments[1]) {
       userRef.child(childs[1]).child("token").once("value").then(function(token) {
           console.log("token " + token.val());
-          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 결제시 채팅방이 개설됩니다.");
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 6시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
           setTimer(data.key);
         });
     } else if(!payments[0] && payments[1]) {
       userRef.child(childs[0]).child("token").once("value").then(function(token) {
           console.log("token " + token.val());
-          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 결제시 채팅방이 개설됩니다.");
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다.  6시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
           setTimer(data.key);
         }); 
@@ -267,7 +267,7 @@ queryForChildChanged.on('child_changed', function(data) {
             var tokens = [];
             tokens[index] = token.val();
             console.log("queryForChildAdded " + tokens[index]);
-            sendFCMMessage(tokens[index], "상대와 매치되었습니다!");
+            sendFCMMessage(tokens[index], "서로 상대에게 '좋아요'를 보냈습니다.");
           }
         });
       });
