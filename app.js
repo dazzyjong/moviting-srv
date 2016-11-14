@@ -40,11 +40,28 @@ var matchTicket = db.ref("match_ticket");
 var userCoupon = db.ref("user_coupon");
 var userPoint = db.ref("user_point");
 var ticketPullRef = db.ref("ticket_pull");
+var movieRef = db.ref("movie");
 
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
 var HashMap = require('hashmap');
 var timerMap = new HashMap();
+
+movieRef.on("child_removed", function(data){
+  userRef.once('value', function(snapshot) {
+    snapshot.forEach(function(child) {
+      if(child.val().preferredMovie != null){
+        var arr = child.val().preferredMovie;
+        arr.forEach(function(item, index){
+          if(item == data.val()) {
+            arr.splice(index, 1);
+          }
+        });
+        child.ref.child("preferredMovie").set(arr);
+      }
+    });
+  });
+});
 
 //listener of user added
 userRef.on("child_added", function(snapshot, prevChildKey) {
@@ -319,7 +336,7 @@ function setTimer(matchUid) {
   var timer = setTimeout(function() {
     console.log("Timer expired");
     rollback(matchUid);
-  } , 21600000);
+  } , 43200000);
   timerMap.set(matchUid, timer);
 }
 
@@ -399,7 +416,7 @@ function sendProposeToOpponent(enrollerUid, opponentUid) {
     userRef.child(opponentUid).once("value").then(function(data) {
       var token = data.child("token").val();
       if(token != null){
-        sendFCMMessage(token, "오늘의 소개가 도착했습니다.");
+        sendFCMMessage(token, "새 인연이 도착했습니다.");
       }
     });
   }).catch(function(){
@@ -466,7 +483,7 @@ function processEachEnrollerData(enrollerDataList, callback) {
         console.error("processEachEnrollerData result");
         if(result != null) {
           console.log("send fcm to: " + result);
-          sendFCMMessage(result,"오늘의 소개가 도착했습니다.");
+          sendFCMMessage(result,"새 인연이 도착했습니다.");
         }
         callback();
       }
@@ -578,7 +595,8 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         && checkGender(enrollerGender, opponentUserData.child("preferredGender").val())
         && checkDate(enrollerDate, opponentUserData.child("preferredDate").val())
         && checkMovie(enrollerMovie, opponentUserData.child("preferredMovie").val())
-        && !proposeData.child(candidate).exists()) {
+        && !proposeData.child(candidate).exists()
+        && enrollerUid != candidate) {
           //console.log("accept range & dup: " + candidate);
           filteredCandidates.push(candidate);
         }
