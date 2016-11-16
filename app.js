@@ -18,6 +18,11 @@
 var firebase = require("firebase");
 var async = require('async');
 var FCM = require('fcm-push-notif');
+var logger = require('tracer').console({
+    format : "{{timestamp}} <{{title}}> {{message}} (in {{file}}:{{line}})",
+    dateformat : "HH:MM:ss.L"
+  });
+var blocked = require('blocked');
 
 firebase.initializeApp({
   serviceAccount: {
@@ -65,16 +70,16 @@ movieRef.on("child_removed", function(data){
 
 //listener of user added
 userRef.on("child_added", function(snapshot, prevChildKey) {
-  console.log("child_added: " + snapshot.val().email);
+  logger.log("child_added: " + snapshot.val().email);
 
   // listener of each user's userStatus changed
   userRef.child(snapshot.key).on("child_changed", function(snapshot) {
     // userStatus && Enrolled
     if (snapshot.key == "userStatus" && snapshot.val() == "Enrolled") {
-      console.log("child_changed: " + snapshot.val());
+      logger.log("child_changed: " + snapshot.val());
       
       snapshot.ref.parent.once("value", function(data) {
-        console.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge);
+        logger.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge);
         if (data.val().gender == "male") {
           var uid = data.key;
           maleEnrollRef.child(data.val().myAge + "/" + uid).set(true);
@@ -84,10 +89,10 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
         }
       });
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Disenrolled") {
-      console.log("child_changed: " + snapshot.val());
+      logger.log("child_changed: " + snapshot.val());
       
       snapshot.ref.parent.once("value", function(data) {
-        console.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge);
+        logger.log("enrolled_user: " + data.key + " / " + data.val().gender + " / " + data.val().myAge);
         if (data.val().gender == "male") {
           var uid = data.key;
           maleEnrollRef.child(data.val().myAge + "/" + uid).remove();
@@ -97,13 +102,13 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
         }
       });
     } else if (snapshot.key == "userStatus" && snapshot.val() == "Matched") {
-      console.log("child_changed: " + snapshot.val());
+      logger.log("child_changed: " + snapshot.val());
     } else if(snapshot.key == "gender" && snapshot.val() == "female") {
       var newCoupon = userCoupon.child(snapshot.ref.parent.key).push();
           newCoupon.child("kind").set("1회 영화관람 이용권");
           newCoupon.child("used").set(false);
       userRef.child(snapshot.ref.parent.key).once("value", function(data){
-        console.log(data.val());
+        logger.log(data.val());
         //sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
       });
     }
@@ -113,15 +118,15 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
 var couponLoaded = false;
 userCoupon.on("child_added", function(snapshot){
   if(couponLoaded == true) {
-    console.log("new userCoupon child_added: " + snapshot.key);
+    logger.log("new userCoupon child_added: " + snapshot.key);
     userRef.child(snapshot.key).child("token").once("value", function(data){
       sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
     });
   } else {
-    console.log("userCoupon child_added: " + snapshot.key);
+    logger.log("userCoupon child_added: " + snapshot.key);
     userCoupon.child(snapshot.key).on("child_changed", function(snapshot){
       if(snapshot.val().used == false) {
-        console.log("another userCoupon added: " + snapshot.ref.parent.key);
+        logger.log("another userCoupon added: " + snapshot.ref.parent.key);
         userRef.child(snapshot.ref.parent.key).child("token").once("value", function(data){
           sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
         });
@@ -132,22 +137,22 @@ userCoupon.on("child_added", function(snapshot){
 
 userCoupon.once("value", function(snapshot){
   couponLoaded = true;
-  console.log("userCoupon once value: " + snapshot.key);
+  logger.log("userCoupon once value: " + snapshot.key);
 });
 
 /////////////////////////////////////////////////////////////////////////////////////////
 var pointLoaded = false;
 userPoint.on("child_added", function(snapshot){
   if(pointLoaded == true) {
-    console.log("new userPoint child_added: " + snapshot.key);
+    logger.log("new userPoint child_added: " + snapshot.key);
     userRef.child(snapshot.key).child("token").once("value", function(data){
       sendFCMMessage(data.val(), "크레딧이 충전되었습니다.");
     });
   } else {
-    console.log("userPoint child_added: " + snapshot.key);
+    logger.log("userPoint child_added: " + snapshot.key);
     userPoint.on("child_changed", function(snapshot){
       if(snapshot.val() > 0) {
-        console.log("another userPoint added: " + snapshot.key);
+        logger.log("another userPoint added: " + snapshot.key);
         userRef.child(snapshot.key).child("token").once("value", function(data){
           sendFCMMessage(data.val(), "크레딧이 충전되었습니다.");
         });
@@ -158,21 +163,21 @@ userPoint.on("child_added", function(snapshot){
 
 userPoint.once("value", function(snapshot){
   pointLoaded = true;
-  console.log("userPoint once value: " + snapshot.key);
+  logger.log("userPoint once value: " + snapshot.key);
 });
 
 // listner of propose
 proposeRef.on("child_added", function(snapshot, prevChildKey) {
-  console.log("proposed: " + snapshot.key);
+  logger.log("proposed: " + snapshot.key);
   snapshot.forEach(function(childSnapshot){
-    console.log("proposed child: " + childSnapshot.key);
+    logger.log("proposed child: " + childSnapshot.key);
 
     childSnapshot.ref.on("child_changed", function(snapshot) {
       if (snapshot.key == "status" && snapshot.val() == "Like") {
-        console.log(snapshot.ref.parent.parent.key + " / " + snapshot.ref.parent.key);
+        logger.log(snapshot.ref.parent.parent.key + " / " + snapshot.ref.parent.key);
         checkMatch(snapshot.ref.parent.parent.key, snapshot.ref.parent.key);
       } else if (snapshot.key == "status" && snapshot.val() == "Dislike") {
-        console.log(snapshot.ref.parent.key);
+        logger.log(snapshot.ref.parent.key);
       }
     });
 
@@ -184,13 +189,13 @@ matchMemberPaymentRef.once('value', function(data) {
 
   var queryForChildAdded = matchMemberPaymentRef.orderByKey();
   queryForChildAdded.on('child_added', function(data) {
-    console.log("queryForChildAdded " + loadingData + " " + data.key);
+    logger.log("queryForChildAdded " + loadingData + " " + data.key);
   });
 });
 
 var queryForChildChanged = matchMemberPaymentRef.orderByKey();
 queryForChildChanged.on('child_changed', function(data) {
-  console.log("queryForChildChanged" + data.key + " " + data.val());
+  logger.log("queryForChildChanged" + data.key + " " + data.val());
   var payments = [];
   var type = [];
   var childs = [];
@@ -199,29 +204,29 @@ queryForChildChanged.on('child_changed', function(data) {
   var expiration_date;
   
   data.forEach(function(child){
-      console.log(child.key + " " + child.val().payment + " " + child.val().type);
+      logger.log(child.key + " " + child.val().payment + " " + child.val().type);
       payments[i] = child.val().payment;
       type[i] = child.val().type;
       childs[i] = child.key;
       i++;
   });
 
-  console.log(payments[0] + " " + payments[1] + " " + childs[0] + " " + childs[1] ); 
+  logger.log(payments[0] + " " + payments[1] + " " + childs[0] + " " + childs[1] ); 
 
   if(payments[0] != undefined && payments[1] !=undefined && childs[0] !=undefined && childs[1] !=undefined){
     if(payments[0] && payments[1] && type[0].length != 0 && type[1].length != 0) {
-      console.log("start chat");
+      logger.log("start chat");
       async.waterfall([ function(callback) {
         userRef.child(childs[0]).child("token").once("value").then(function(token) {
-          console.log("token " + token.val());
+          logger.log("token " + token.val());
           
           ticketPullRef.orderByKey().limitToFirst(1).once("value", function(snapshot) {
             snapshot.forEach(function(child) {
               ticket = child.val().ticket_id;
               expiration_date = child.val().expiration_date;
               child.ref.remove(function(error){
-                console.log("removed");
-                console.log("assignMovieTicket" + ticket);
+                logger.log("removed");
+                logger.log("assignMovieTicket" + ticket);
                 matchTicket.child(data.key).child(childs[0]).child(ticket).child("expiration_date").set(expiration_date);
                 matchTicket.child(data.key).child(childs[0]).child(ticket).child("screening").set(true, function(error){
                   callback(null);
@@ -235,15 +240,15 @@ queryForChildChanged.on('child_changed', function(data) {
         })}, 
         function(callback) {
           userRef.child(childs[1]).child("token").once("value").then(function(token) {
-            console.log("token " + token.val());
+            logger.log("token " + token.val());
 
             ticketPullRef.orderByKey().limitToFirst(1).once("value", function(snapshot) {
               snapshot.forEach(function(child) {
                 ticket = child.val().ticket_id;
                 expiration_date = child.val().expiration_date;
                 child.ref.remove(function(error){
-                  console.log("removed");
-                  console.log("assignMovieTicket" + ticket);
+                  logger.log("removed");
+                  logger.log("assignMovieTicket" + ticket);
                   matchTicket.child(data.key).child(childs[1]).child(ticket).child("expiration_date").set(expiration_date);
                   matchTicket.child(data.key).child(childs[1]).child(ticket).child("screening").set(true, function(error){
                     callback(null, null);
@@ -261,18 +266,18 @@ queryForChildChanged.on('child_changed', function(data) {
             };
 
             matchChatRef.child(data.key).push().set(welcomMessage);   
-            console.log("end chat");
+            logger.log("end chat");
         });
     } else if(payments[0] && !payments[1]) {
       userRef.child(childs[1]).child("token").once("value").then(function(token) {
-          console.log("token " + token.val());
+          logger.log("token " + token.val());
           sendFCMMessage(token.val(), "상대방이 결제하였습니다. 6시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
           setTimer(data.key);
         });
     } else if(!payments[0] && payments[1]) {
       userRef.child(childs[0]).child("token").once("value").then(function(token) {
-          console.log("token " + token.val());
+          logger.log("token " + token.val());
           sendFCMMessage(token.val(), "상대방이 결제하였습니다.  6시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
           setTimer(data.key);
@@ -283,7 +288,7 @@ queryForChildChanged.on('child_changed', function(data) {
           if(!payments[0] && !payments[1]) {
             var tokens = [];
             tokens[index] = token.val();
-            console.log("queryForChildAdded " + tokens[index]);
+            logger.log("queryForChildAdded " + tokens[index]);
             sendFCMMessage(tokens[index], "서로 상대에게 '좋아요'를 보냈습니다.");
           }
         });
@@ -299,13 +304,13 @@ matchMemberPaymentRef.on('child_removed', function(data) {
 
 matchChatRef.on('child_added', function(data) {
   var initialChatLoaded = false;
-  console.log("match_chat" + data.key);
+  logger.log("match_chat" + data.key);
 
   matchChatRef.child(data.key).on('child_added', function(child) {
     if (initialChatLoaded) {    
-      console.log("match_chat added after loaded: " + data.key + " " + child.key);
+      logger.log("match_chat added after loaded: " + data.key + " " + child.key);
       matchMemberPaymentRef.child(data.key).once('value', function(snapshot) {
-        console.log("match_chat addedafter loaded: " + child.val().message + " " + child.val().uid);
+        logger.log("match_chat addedafter loaded: " + child.val().message + " " + child.val().uid);
         var message = child.val().message;
         var senderUid = child.val().uid;
         var receiveUid; 
@@ -316,10 +321,10 @@ matchChatRef.on('child_added', function(data) {
           }
         });
         
-        console.log("match_chat changed: " + receiveUid);
+        logger.log("match_chat changed: " + receiveUid);
 
         userRef.child(receiveUid).child("token").once("value", function(token) {
-          console.log("sendFCMMessage: " + token.val());
+          logger.log("sendFCMMessage: " + token.val());
           sendFCMMessage(token.val(), message);
         });
       });
@@ -332,24 +337,25 @@ matchChatRef.on('child_added', function(data) {
 });
 
 function setTimer(matchUid) {
-  console.log("setTimer: " + matchUid);
+  logger.log("setTimer: " + matchUid);
   var timer = setTimeout(function() {
-    console.log("Timer expired");
+    logger.log("Timer expired");
     rollback(matchUid);
   } , 43200000);
   timerMap.set(matchUid, timer);
 }
 
 function releaseTimer(matchUid) {
-  console.log("releaseTimer: " + matchUid);
+  logger.log("releaseTimer: " + matchUid);
   var timer = timerMap.get(matchUid);
   clearTimeout(timer);
 }
 
 function rollback(matchUid) {
   matchMemberPaymentRef.child(matchUid).once('value', function(data) {
-    
+    var uid = [];
     data.forEach(function(child){
+      uid.push(child.key);
       var payment = child.val().payment;
       var type = child.val().type;
 
@@ -364,6 +370,10 @@ function rollback(matchUid) {
       }
       userMatchRef.child(child.key).child(matchUid).set(false);
     });
+    if(uid[0] != null && uid[1] != null) {
+      proposeRef.child(uid[0]).child(uid[1]).remove();
+      proposeRef.child(uid[1]).child(uid[0]).remove();
+    }
   });
 }
 
@@ -371,13 +381,13 @@ function checkMatch(enrollerUid, opponentUid) {
   var isFound = false;
 
   proposeRef.child(opponentUid).once("value", function(snapshot){
-    console.log("checkMatch: " + snapshot.key);
+    logger.log("checkMatch: " + snapshot.key);
     snapshot.forEach(function(child){
-      console.log("checkMatch child: " + child.key);
+      logger.log("checkMatch child: " + child.key);
       if(child.key === enrollerUid){
         if(child.child("status").val() === "Like") {
           // Both user like each other
-          console.log(child.child("status").val());
+          logger.log(child.child("status").val());
           makeMatchMember(enrollerUid, opponentUid);
           updateEnroll(enrollerUid, opponentUid);
         }
@@ -400,7 +410,7 @@ function makeMatchMember(enrollerUid, opponentUid) {
   userMatchRef.child(enrollerUid).child(newMatchMemberRef.key).set(true);
   userMatchRef.child(opponentUid).child(newMatchMemberRef.key).set(true);
 
-  console.log("makeMatchMember" + newMatchMemberRef.toString());
+  logger.log("makeMatchMember" + newMatchMemberRef.toString());
 }
 
 function updateEnroll(enrollerUid, opponentUid) {
@@ -420,7 +430,7 @@ function sendProposeToOpponent(enrollerUid, opponentUid) {
       }
     });
   }).catch(function(){
-    console.log('sendProposeToOpponent failed');
+    logger.log('sendProposeToOpponent failed');
   });
 }
 
@@ -431,10 +441,10 @@ function processPropose(ref) {
     processEachEnrollerData,
   ], function (err, result) {
     if(err != null) {
-      console.error("processPropose err: " + err.toString());
+      logger.error("processPropose err: " + err.toString());
     }
     if(result != null) {
-      console.log("end!!!! " + result);
+      logger.log("end!!!! " + result);
     }
   });
 }
@@ -465,7 +475,7 @@ function getUserDataList(enrollerList, callback) {
     if(err == null){
       callback(null, enrollerDataList); 
     } else {
-      console.error(err);
+      logger.error(err);
     }
   });
 }
@@ -478,11 +488,11 @@ function processEachEnrollerData(enrollerDataList, callback) {
       chooseThreePropose,
     ], function (err, result) {
       if(err != null) {
-        console.error("processEachEnrollerData err: " + err.toString());
+        logger.error("processEachEnrollerData err: " + err.toString());
       } else {
-        console.error("processEachEnrollerData result");
+        logger.error("processEachEnrollerData result");
         if(result != null) {
-          console.log("send fcm to: " + result);
+          logger.log("send fcm to: " + result);
           sendFCMMessage(result,"새 인연이 도착했습니다.");
         }
         callback();
@@ -491,9 +501,9 @@ function processEachEnrollerData(enrollerDataList, callback) {
   
   }, function(err) {
     if( err ) {
-      console.error("processEachEnrollerData err: " + err.toString());
+      logger.error("processEachEnrollerData err: " + err.toString());
     } else {
-      console.log('processEachEnrollerData successfully');
+      logger.log('processEachEnrollerData successfully');
       callback(null, "succeess");
     }
   });
@@ -518,10 +528,10 @@ function findOpponentCandidate(enrollerData, rootCallback) {
     async.series(
     [function(callback){
       if(preferredGender === "male" || preferredGender === "both"){
-        console.log("male or both find: " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + enrollerGender + " / " + preferredGender + " / " + token);
+        logger.log("male or both find: " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + enrollerGender + " / " + preferredGender + " / " + token);
         
         maleEnrollRef.orderByKey().startAt(minPrefAge).endAt(maxPrefAge).once("value", function(snapshot) {
-          console.log(enrollerUid + "(maleEnroller): " + snapshot.key);
+          logger.log(enrollerUid + "(maleEnroller): " + snapshot.key);
           callback(null, snapshot);
         }, function(err) {
           callback(err, null);
@@ -532,10 +542,10 @@ function findOpponentCandidate(enrollerData, rootCallback) {
       }
     }, function(callback){
       if(preferredGender === "female" || preferredGender === "both"){
-        console.log("female or both find: " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + enrollerGender + " / " + preferredGender + " / " + token);
+        logger.log("female or both find: " + enrollerUid + " / " + enrollerAge + " / " + minPrefAge + " / " + maxPrefAge + " / " + enrollerGender + " / " + preferredGender + " / " + token);
         
         femaleEnrollRef.orderByKey().startAt(minPrefAge).endAt(maxPrefAge).once("value", function(snapshot) {
-          console.log(enrollerUid + "(femaleEnroller): " + snapshot.key);
+          logger.log(enrollerUid + "(femaleEnroller): " + snapshot.key);
           callback(null, snapshot);
         }, function(err) {
           callback(err, null);
@@ -546,13 +556,13 @@ function findOpponentCandidate(enrollerData, rootCallback) {
       }
     }], function(err, results){
       if(err != null) {
-        console.error("findOpponentCandidate err: " + err.toString());
+        logger.error("findOpponentCandidate err: " + err.toString());
       }
       
       var maleSnapshot = results[0];
       var femaleSnapshot = results[1];
       
-      console.log("start candidate list " + enrollerUid);
+      logger.log("start candidate list " + enrollerUid);
       
       if(maleSnapshot != null) {
         generateCandidateList(maleSnapshot, candidates);
@@ -561,14 +571,14 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         generateCandidateList(femaleSnapshot, candidates);
       }
 
-      console.log("end candidate list " + enrollerUid);
+      logger.log("end candidate list " + enrollerUid);
 
       parentCallback(null, candidates);
     });
   }, function(candidates, secondParentCallback){
-    console.log("start filter candidate list " + enrollerUid);
+    logger.log("start filter candidate list " + enrollerUid);
     async.each(candidates, function(candidate, eachCallback){
-      console.log("filter candidate: " + candidate + " / " + enrollerUid + " / " + enrollerAge);
+      logger.log("filter candidate: " + candidate + " / " + enrollerUid + " / " + enrollerAge);
 
       async.series([
         function(callback) {
@@ -583,7 +593,7 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         },
       ], function(err, results) {
         if(err != null) {
-          console.error("findOpponentCandidate err: " + err.toString());
+          logger.error("findOpponentCandidate err: " + err.toString());
         }        
         // results is now equal to ['opponentUserData', 'proposeData']
         var opponentUserData = results[0];
@@ -597,7 +607,7 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         && checkMovie(enrollerMovie, opponentUserData.child("preferredMovie").val())
         && !proposeData.child(candidate).exists()
         && enrollerUid != candidate) {
-          //console.log("accept range & dup: " + candidate);
+          logger.log("accept range & dup: " + candidate);
           filteredCandidates.push(candidate);
         }
         eachCallback();
@@ -605,14 +615,14 @@ function findOpponentCandidate(enrollerData, rootCallback) {
 
     }, function(err){
       if(err != null) {
-        console.error("findOpponentCandidate err: " + err.toString());
+        logger.error("findOpponentCandidate err: " + err.toString());
       }      
-      console.log("end filter candidate list: " + enrollerUid + " / " + filteredCandidates);
+      logger.log("end filter candidate list: " + enrollerUid + " / " + filteredCandidates);
       secondParentCallback(null, filteredCandidates);
     });
   }],function(err, result) {
     if(err != null) {
-      console.error("findOpponentCandidate err: " + err.toString());
+      logger.error("findOpponentCandidate err: " + err.toString());
     }
     // chooseThreePropose
     rootCallback(null, filteredCandidates, enrollerUid, token);
@@ -674,7 +684,7 @@ function generateCandidateList(snapshot, candidates) {
       candidates.push(secondChildSnapshot.key);
     });
   });
-  console.log("foreach end: " + candidates);
+  logger.log("foreach end: " + candidates);
 }
 
 function chooseThreePropose(candidates, enrollerUid, token, callback) {
@@ -686,7 +696,7 @@ function chooseThreePropose(candidates, enrollerUid, token, callback) {
         break;
       }
       var pick = Math.floor(Math.random() * candidates.length);
-      console.log("pick: " + pick + " / " + candidates.length + " / " + candidates[pick]);
+      logger.log("pick: " + pick + " / " + candidates.length + " / " + candidates[pick]);
       results.push(candidates[pick])
       candidates.splice(pick, 1);
     }
@@ -729,7 +739,7 @@ function getIntervalByNoon() {
       today.getHours(), today.getMinutes()+1, 0, 0);
       //today.getDate() + 1,
       //12, 0, 0, 0);
-    console.log("getIntervalByNoon tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
+    logger.log("getIntervalByNoon tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
     return tomorrowNoon.getTime() - today.getTime();
   } else {
     var todayNoon = new Date(today.getFullYear(),
@@ -737,7 +747,7 @@ function getIntervalByNoon() {
       today.getDate(),
       today.getHours(), today.getMinutes()+1, 0, 0);
       // 12, 0, 0, 0);
-    console.log("getIntervalByNoon today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
+    logger.log("getIntervalByNoon today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
     return todayNoon.getTime() - today.getTime();
   }
 }
@@ -748,7 +758,7 @@ function removePreviousDate() {
       child.forEach(function(grandChild) {
         if (grandChild.key == 'preferredDate') {
           grandChild.ref.orderByValue().once('value', function(snapshot) {
-            console.log("-----------------------------");
+            logger.log("-----------------------------");
             var newDate = [];
             snapshot.forEach(function(child) {
               var today = new Date();
@@ -757,7 +767,7 @@ function removePreviousDate() {
                 newDate.push(child.val());
               }            
             });
-            console.log(newDate);
+            logger.log(newDate);
             grandChild.ref.set(newDate);
           });
         }
@@ -781,7 +791,7 @@ function getIntervalByMidNight() {
     today.getMonth(),
     today.getDate() + 1,
     0, 0, 0, 0);
-  console.log("getIntervalByMidNight tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
+  logger.log("getIntervalByMidNight tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
   return tomorrowNoon.getTime() - today.getTime();
 }
 
@@ -797,19 +807,25 @@ function sendFCMMessage(token, messageBody) {
 
   fcm.send(message)
     .then(function(response){
-      console.log("Successfully sent with response: ", response);
+      logger.log("Successfully sent with response: ", response);
     })
     .catch(function(err){
-      console.log("Something has gone wrong!");
-      console.error(err);
+      logger.log("Something has gone wrong!");
+      logger.error(err);
     });
 }
 
 userRef.on("child_removed", function(snapshot) {
-  console.log("child_removed: " + snapshot.val());
+  logger.log("child_removed: " + snapshot.val());
 });
 
 setInterval(
   function() {
-    console.log("alive");
+    logger.log("alive");
   }, 60000);
+
+var timer = blocked(function(ms) {
+                logger.log("Blocked");
+                process.exit(1);
+            });
+clearInterval(timer);

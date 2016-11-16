@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "async": "^2.0.1",
-    "express": "^4.13.4",
+    "blocked": "^1.2.1",
+    "fcm-push-notif": "^1.2.1",
     "firebase": "^3.2.1",
-    "moment": "^2.15.1"
+    "hashmap": "^2.0.6",
+    "tracer": "^0.8.7"
   }
 }
