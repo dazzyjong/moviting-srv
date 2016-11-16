@@ -15,10 +15,17 @@
 // [START app]
 'use strict';
 
+var fs = require('fs');
 var firebase = require("firebase");
 var async = require('async');
 var FCM = require('fcm-push-notif');
 var logger = require('tracer').console({
+      transport : function(data) {
+        console.log(data.output);
+        fs.appendFile('./file.log', data.output + '\n', (err) => {
+            if (err) throw err;
+        });
+    },
     format : "{{timestamp}} <{{title}}> {{message}} (in {{file}}:{{line}})",
     dateformat : "HH:MM:ss.L"
   });
@@ -62,7 +69,12 @@ movieRef.on("child_removed", function(data){
             arr.splice(index, 1);
           }
         });
+
         child.ref.child("preferredMovie").set(arr);
+        if(arr.length == 0) {
+          child.ref.child("userStatus").set("Disenrolled");
+        }
+
       }
     });
   });
@@ -168,21 +180,27 @@ userPoint.once("value", function(snapshot){
 
 // listner of propose
 proposeRef.on("child_added", function(snapshot, prevChildKey) {
+  // uid
   logger.log("proposed: " + snapshot.key);
-  snapshot.forEach(function(childSnapshot){
-    logger.log("proposed child: " + childSnapshot.key);
-
-    childSnapshot.ref.on("child_changed", function(snapshot) {
-      if (snapshot.key == "status" && snapshot.val() == "Like") {
-        logger.log(snapshot.ref.parent.parent.key + " / " + snapshot.ref.parent.key);
-        checkMatch(snapshot.ref.parent.parent.key, snapshot.ref.parent.key);
-      } else if (snapshot.key == "status" && snapshot.val() == "Dislike") {
-        logger.log(snapshot.ref.parent.key);
-      }
-    });
-
+  snapshot.ref.on("child_added", function(childSnapshot){
+    // opponent uid
+    logger.log("proposed child added: " + childSnapshot.key);
+    proposeChangeListener(childSnapshot);
   });
 });
+
+function proposeChangeListener(childSnapshot) {
+    childSnapshot.ref.on("child_changed", function(snapshot) {
+      if (snapshot.key == "status" && snapshot.val() == "Like") {
+        logger.log(snapshot.ref.parent.parent.key + " like " + snapshot.ref.parent.key);
+        checkMatch(snapshot.ref.parent.parent.key, snapshot.ref.parent.key);
+      } else if (snapshot.key == "status" && snapshot.val() == "Proposed") {
+        logger.log("proposed again: " + snapshot.ref.parent.key);
+      } else if (snapshot.key == "status" && snapshot.val() == "Dislike") {
+        logger.log("dislike: " + snapshot.ref.parent.key);
+      } 
+    });
+}
 
 matchMemberPaymentRef.once('value', function(data) {
   var loadingData = data.numChildren();
@@ -271,14 +289,14 @@ queryForChildChanged.on('child_changed', function(data) {
     } else if(payments[0] && !payments[1]) {
       userRef.child(childs[1]).child("token").once("value").then(function(token) {
           logger.log("token " + token.val());
-          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 6시간이내 결제시 채팅방이 개설됩니다.");
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 12시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
           setTimer(data.key);
         });
     } else if(!payments[0] && payments[1]) {
       userRef.child(childs[0]).child("token").once("value").then(function(token) {
           logger.log("token " + token.val());
-          sendFCMMessage(token.val(), "상대방이 결제하였습니다.  6시간이내 결제시 채팅방이 개설됩니다.");
+          sendFCMMessage(token.val(), "상대방이 결제하였습니다.  12시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
           setTimer(data.key);
         }); 
@@ -609,6 +627,8 @@ function findOpponentCandidate(enrollerData, rootCallback) {
         && enrollerUid != candidate) {
           logger.log("accept range & dup: " + candidate);
           filteredCandidates.push(candidate);
+        } else {
+          logger.log("rejected range & dup: " + candidate);
         }
         eachCallback();
       });
@@ -767,8 +787,13 @@ function removePreviousDate() {
                 newDate.push(child.val());
               }            
             });
+            
             logger.log(newDate);
+
             grandChild.ref.set(newDate);
+            if(newDate.length == 0) {
+              child.ref.child("userStatus").set("Disenrolled");
+            }
           });
         }
       });
@@ -818,11 +843,6 @@ function sendFCMMessage(token, messageBody) {
 userRef.on("child_removed", function(snapshot) {
   logger.log("child_removed: " + snapshot.val());
 });
-
-setInterval(
-  function() {
-    logger.log("alive");
-  }, 60000);
 
 var timer = blocked(function(ms) {
                 logger.log("Blocked");
