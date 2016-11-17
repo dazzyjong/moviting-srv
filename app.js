@@ -60,21 +60,21 @@ var HashMap = require('hashmap');
 var timerMap = new HashMap();
 
 movieRef.on("child_removed", function(data){
+	console.log("child_removed " + data.key);
+  
   userRef.once('value', function(snapshot) {
     snapshot.forEach(function(child) {
       if(child.val().preferredMovie != null){
         var arr = child.val().preferredMovie;
         arr.forEach(function(item, index){
-          if(item == data.val()) {
+          if(item == data.key) {
             arr.splice(index, 1);
           }
         });
-
         child.ref.child("preferredMovie").set(arr);
         if(arr.length == 0) {
           child.ref.child("userStatus").set("Disenrolled");
         }
-
       }
     });
   });
@@ -253,7 +253,7 @@ queryForChildChanged.on('child_changed', function(data) {
             });
           });
 
-          sendFCMMessage(token.val(), "상대방이 결제하였습니다. 채팅방이 개설되었습니다.");
+          sendFCMMessage(token.val(), "채팅방이 개설되었습니다!");
           releaseTimer(data.key);
         })}, 
         function(callback) {
@@ -275,7 +275,7 @@ queryForChildChanged.on('child_changed', function(data) {
               });
             });
 
-            sendFCMMessage(token.val(), "상대방이 결제하였습니다. 채팅방이 개설되었습니다.");
+            sendFCMMessage(token.val(), "채팅방이 개설되었습니다!");
             releaseTimer(data.key);          
           })}], function(err, result){
             var welcomMessage = { 
