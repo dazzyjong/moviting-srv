@@ -1,4 +1,4 @@
-// Copyright 2015-2016, Google, Inc.
+// Copyright 2015-2016, Seolrera, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 'use strict';
 
 var fs = require('fs');
-var firebase = require("firebase");
+var admin = require("firebase-admin");
 var async = require('async');
 var FCM = require('fcm-push-notif');
 var logger = require('tracer').console({
@@ -31,16 +31,14 @@ var logger = require('tracer').console({
   });
 var blocked = require('blocked');
 
-firebase.initializeApp({
-  serviceAccount: {
-    projectId: "moviting",
-    clientEmail: "moviting-backend@moviting.iam.gserviceaccount.com",
-    privateKey: "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC9jd8XSdVeCGcW\n2mqYBfiFEuaF70o7cB2qMiW4tViPy+9iQWlnlbe42C3kgiMludbZgpBtT55V4UC4\nu5juesnhCd2QEgFuuxgIP1PBoWWMCUTfG5IDTLDMKbL02Rm0bELJu5bRZkBJQ1L6\ngl9wj+sY58ZNTCvbae0Pa+6cwzKb3pszl4kqDrlp2Erz72VNWxZc/WK/8ZgJvKes\npYmdz+RxaVEZ/GayNBChzb7t//udsqozLpsBaRtwzX0n8KR2YhAeh5qDLXDFejXx\nMd9jFDuCEG62DiWquUUxn+TkOl9ZeCsMYE4y80RJ3+nXytS4V5mWKkeyoLrI4DOR\nAudkjWQjAgMBAAECggEBAJFe/YnpuPYdsZoINhmS8q5z+VEcXCzLZiTBwsYuZdYa\nC+Op0MF9Q+JCAKgv2e6z4H79r+/1ULQCRVWnobi7eJnarA4ykOCwIdUpY/2q3qsP\n7L7CcS+QoEJjdHhtC1agdHQsJpU/Ouw08q1mUPWNmjqGfkGHulbSnNjn6J5W4ThB\no/KI3K0gENehU2KK6vZmKPiut6v7r/uVVOx3eecT4M463wu4GRgrlA1jCHhsxbWw\nHWBSo/oUjJEztsyPrrIiFgUDnMwPpzr5rAeVbWVucsr8/gIGqBJZwagLWNf7UfTb\n+Ey6RibMLlfB/jXn+mQ2DzRoYLhUCCZ4Qw9MVlyF/XkCgYEA8ylHxOPjwv3xBWNU\nnq1s1R2rg81Ag5GREcksIAoBagcNzp0vr+p8yctQ/4xoDGPhG9TrhhslIUKvsRZq\n33Aq0oyUoN6tchJ9QBdFTizcT0ODZ/9aWnNuSbzdgiNLyhN/fcaPn/fHn5n4jvqi\nCTqXEY4lvfFcbgZz/bQx5e9WLsUCgYEAx5ABI3w9pTgBei40EygfcKhaRz9R/cBc\n2K30q83fYPPz2i7QTkhGe2G0gYJbsaoeeK7ucWB8AGKbkE0KrQKA+NLlqCecwDcP\nkQqIhcSCQUQ19FDxV5SIpe2zzxlaTyA9YY46+cLPu2I47mKKIjIGqRMzLDiUzH1Q\nLG6KwlNjdccCgYEAk/o8NeLlucWmhrvjREmQIMXUmfov16Gfoi5GDx1nrOmsCl/4\nJFtUI836dfoxW9DwrmpOBqfAWdRmbSOSWHW/abCpxpic/v2ngXhn8eI1FHumnYR1\nrPPwWyl3t/nY5polDRroTtaQgl1GOWTndSxVwRY7e7NFp6N/tRaTAzY6wW0CgYEA\nsE0uVFUseMwTsgcjhlEKBZMVvp/YJZ9N5zc3UpicYaDjq7tz19TOP64/s7Kgo0Kx\njNiuWodsxUJYQJFvfw0ZN7nJnlbwineaTv7JQbQrhtFmASOJM2BLoJtxIOM6/3By\nCb+HpqNOtjK+LQvtEOy1KaWGreiGvGlw7O/zsl3NHn0CgYBv/NQbTY6AbIyPyXhY\n8k/ovBempBV7CBbG1DCYUij9/DgxJQMG7H/qYSKB3laYRaeQaFj6y2jTpksbY2NN\nwACfTR+5whtorRBqu9mkF5iHhJ26JiFh2a3z1EM/8NZRse+0NoLzY1H94pDMolOW\nVP5zWSVpprHMZt+R4VvtUprKGg==\n-----END PRIVATE KEY-----\n"
-  },
+var serviceAccount = require("./moviting-firebase-adminsdk-uo15c-c0100999b6.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://moviting.firebaseio.com/"
 });
 
-var db = firebase.database();
+var db = admin.database();
 var userRef = db.ref("users");
 var maleEnrollRef = db.ref("enroller/male");
 var femaleEnrollRef = db.ref("enroller/female");
@@ -59,6 +57,8 @@ var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
 var HashMap = require('hashmap');
 var timerMap = new HashMap();
+var EXPIRATION_TIME = 43200000;
+var PROPOSE_TIME = 86400000;
 
 movieRef.on("child_removed", function(data){
 	console.log("child_removed " + data.key);
@@ -130,8 +130,8 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
 
 matchTimerRef.on("child_added", function(snapshot){
 	var now = new Date();
-	logger.log("matchTimerRef " + snapshot.key + " " + (43200000 - (now.getTime() - snapshot.val())));
-  setTimer(snapshot.key, 43200000 - (now.getTime() - snapshot.val()));
+	logger.log("matchTimerRef " + snapshot.key + " " + (EXPIRATION_TIME - (now.getTime() - snapshot.val())));
+  setTimer(snapshot.key, EXPIRATION_TIME - (now.getTime() - snapshot.val()));
 });
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -301,14 +301,14 @@ queryForChildChanged.on('child_changed', function(data) {
           logger.log("token " + token.val());
           sendFCMMessage(token.val(), "상대방이 결제하였습니다. 12시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
-          setTimer(data.key, 43200000);
+          setTimer(data.key, EXPIRATION_TIME);
         });
     } else if(!payments[0] && payments[1]) {
       userRef.child(childs[0]).child("token").once("value").then(function(token) {
           logger.log("token " + token.val());
           sendFCMMessage(token.val(), "상대방이 결제하였습니다.  12시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
-          setTimer(data.key, 43200000);
+          setTimer(data.key, EXPIRATION_TIME);
         }); 
     } else if(!payments[0] && !payments[1]) {
       childs.forEach(function(item, index){
@@ -321,7 +321,7 @@ queryForChildChanged.on('child_changed', function(data) {
           }
         });
       });
-      setTimer(data.key, 43200000);
+      setTimer(data.key, EXPIRATION_TIME);
     }
   }
 });
@@ -371,7 +371,7 @@ function setTimer(matchUid, time) {
     rollback(matchUid);
     matchTimerRef.child(matchUid).remove();
   } , time);
-  matchTimerRef.child(matchUid).set(firebase.database.ServerValue.TIMESTAMP);
+  matchTimerRef.child(matchUid).set(admin.database.ServerValue.TIMESTAMP);
   timerMap.set(matchUid, timer);
 }
 
@@ -451,7 +451,7 @@ function updateEnroll(enrollerUid, opponentUid) {
 
 function sendProposeToOpponent(enrollerUid, opponentUid) {
   proposeRef.child(opponentUid + "/" + enrollerUid).set({
-    proposedAt: firebase.database.ServerValue.TIMESTAMP,
+    proposedAt: admin.database.ServerValue.TIMESTAMP,
     status: "Proposed"
   }).then(function(){
     userRef.child(opponentUid).once("value").then(function(data) {
@@ -736,7 +736,7 @@ function chooseThreePropose(candidates, enrollerUid, token, callback) {
     
     for (var i = 0; i < results.length; i++) {
       proposeRef.child(enrollerUid + "/" + results[i]).set({
-        proposedAt: firebase.database.ServerValue.TIMESTAMP,
+        proposedAt: admin.database.ServerValue.TIMESTAMP,
         status: "Proposed"
       });
     }
@@ -758,7 +758,7 @@ setTimeout(function() {
     setTimeout(function() {
       processPropose(femaleEnrollRef);
     }, 5000);
-  }, 60000/*86400000*/ );
+  }, PROPOSE_TIME);
 
 }, getIntervalByNoon() );
 
@@ -818,7 +818,7 @@ setTimeout(function() {
   removePreviousDate();
   setInterval(function(){
     removePreviousDate();
-  }, 86400000 );
+  }, PROPOSE_TIME );
 
 }, getIntervalByMidNight() );
 

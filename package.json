@@ -17,7 +17,7 @@
     "async": "^2.0.1",
     "blocked": "^1.2.1",
     "fcm-push-notif": "^1.2.1",
-    "firebase": "^3.2.1",
+    "firebase-admin": "^4.0.3",
     "hashmap": "^2.0.6",
     "tracer": "^0.8.7"
   }
