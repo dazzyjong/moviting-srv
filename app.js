@@ -130,7 +130,7 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
 
 matchTimerRef.on("child_added", function(snapshot){
 	var now = new Date();
-	console.log("matchTimerRef " + snapshot.key + " " + now.getTime() - snapshot.val());
+	logger.log("matchTimerRef " + snapshot.key + " " + (43200000 - (now.getTime() - snapshot.val())));
   setTimer(snapshot.key, 43200000 - (now.getTime() - snapshot.val()));
 });
 
@@ -365,7 +365,7 @@ matchChatRef.on('child_added', function(data) {
 });
 
 function setTimer(matchUid, time) {
-  logger.log("setTimer: " + matchUid);
+  logger.log("setTimer: " + matchUid + " " + time);
   var timer = setTimeout(function() {
     logger.log("Timer expired");
     rollback(matchUid);
