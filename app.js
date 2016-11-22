@@ -53,6 +53,7 @@ var userCoupon = db.ref("user_coupon");
 var userPoint = db.ref("user_point");
 var ticketPullRef = db.ref("ticket_pull");
 var movieRef = db.ref("movie");
+var matchTimerRef = db.ref("match_timer");
 
 var serverKey = 'AIzaSyD68kMn8f6lFp1DHv5s1oG0OxQ8RWF19x8';
 var fcm = new FCM(serverKey);
@@ -127,6 +128,13 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
   });
 });
 
+matchTimerRef.on("child_added", function(snapshot){
+	var now = new Date();
+	console.log("matchTimerRef " + snapshot.key + " " + now.getTime() - snapshot.val());
+  setTimer(snapshot.key, 43200000 - (now.getTime() - snapshot.val()));
+});
+
+/////////////////////////////////////////////////////////////////////////////////////////
 var couponLoaded = false;
 userCoupon.on("child_added", function(snapshot){
   if(couponLoaded == true) {
@@ -177,6 +185,8 @@ userPoint.once("value", function(snapshot){
   pointLoaded = true;
   logger.log("userPoint once value: " + snapshot.key);
 });
+
+/////////////////////////////////////////////////////////////////////////////////////////
 
 // listner of propose
 proposeRef.on("child_added", function(snapshot, prevChildKey) {
@@ -291,14 +301,14 @@ queryForChildChanged.on('child_changed', function(data) {
           logger.log("token " + token.val());
           sendFCMMessage(token.val(), "상대방이 결제하였습니다. 12시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
-          setTimer(data.key);
+          setTimer(data.key, 43200000);
         });
     } else if(!payments[0] && payments[1]) {
       userRef.child(childs[0]).child("token").once("value").then(function(token) {
           logger.log("token " + token.val());
           sendFCMMessage(token.val(), "상대방이 결제하였습니다.  12시간이내 결제시 채팅방이 개설됩니다.");
           releaseTimer(data.key);
-          setTimer(data.key);
+          setTimer(data.key, 43200000);
         }); 
     } else if(!payments[0] && !payments[1]) {
       childs.forEach(function(item, index){
@@ -311,7 +321,7 @@ queryForChildChanged.on('child_changed', function(data) {
           }
         });
       });
-      setTimer(data.key);
+      setTimer(data.key, 43200000);
     }
   }
 });
@@ -354,12 +364,14 @@ matchChatRef.on('child_added', function(data) {
   });
 });
 
-function setTimer(matchUid) {
+function setTimer(matchUid, time) {
   logger.log("setTimer: " + matchUid);
   var timer = setTimeout(function() {
     logger.log("Timer expired");
     rollback(matchUid);
-  } , 43200000);
+    matchTimerRef.child(matchUid).remove();
+  } , time);
+  matchTimerRef.child(matchUid).set(firebase.database.ServerValue.TIMESTAMP);
   timerMap.set(matchUid, timer);
 }
 
@@ -367,6 +379,7 @@ function releaseTimer(matchUid) {
   logger.log("releaseTimer: " + matchUid);
   var timer = timerMap.get(matchUid);
   clearTimeout(timer);
+  matchTimerRef.child(matchUid).remove();
 }
 
 function rollback(matchUid) {
