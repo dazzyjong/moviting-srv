@@ -118,20 +118,22 @@ userRef.on("child_added", function(snapshot, prevChildKey) {
       logger.log("child_changed: " + snapshot.val());
     } else if(snapshot.key == "gender" && snapshot.val() == "female") {
       var newCoupon = userCoupon.child(snapshot.ref.parent.key).push();
-          newCoupon.child("kind").set("1회 영화관람 이용권");
-          newCoupon.child("used").set(false);
-      userRef.child(snapshot.ref.parent.key).once("value", function(data){
-        logger.log(data.val());
-        //sendFCMMessage(data.val(),"1회 영화관람 이용권이 발급되었습니다.");
-      });
+      newCoupon.child("kind").set("1회 영화관람 이용권");
+      newCoupon.child("used").set(false);
     }
   });
 });
 
-matchTimerRef.on("child_added", function(snapshot){
+matchTimerRef.once("value", function(snapshot){
 	var now = new Date();
-	logger.log("matchTimerRef " + snapshot.key + " " + (EXPIRATION_TIME - (now.getTime() - snapshot.val())));
-  setTimer(snapshot.key, EXPIRATION_TIME - (now.getTime() - snapshot.val()));
+  snapshot.forEach(function(child){
+    var remain = EXPIRATION_TIME - (now.getTime() - child.val());
+    if(remain < 0) {
+      remain = 0;
+    }
+	  logger.log("matchTimerRef " + child.key + " " + remain);
+    setTimer(child.key, remain);
+  });
 });
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -389,6 +391,8 @@ function rollback(matchUid) {
       uid.push(child.key);
       var payment = child.val().payment;
       var type = child.val().type;
+
+      logger.log("rollback" + child.key);
 
       if (payment == true) {
         if(type == "cash") {
