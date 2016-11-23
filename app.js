@@ -772,18 +772,18 @@ function getIntervalByNoon() {
   if (todayHours >= 12) {
     var tomorrowNoon = new Date(today.getFullYear(),
       today.getMonth(),
-      today.getDate(),
-      today.getHours(), today.getMinutes()+1, 0, 0);
-      //today.getDate() + 1,
-      //12, 0, 0, 0);
+      //today.getDate(),
+      //today.getHours(), today.getMinutes()+1, 0, 0);
+      today.getDate() + 1,
+      12, 0, 0, 0);
     logger.log("getIntervalByNoon tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
     return tomorrowNoon.getTime() - today.getTime();
   } else {
     var todayNoon = new Date(today.getFullYear(),
       today.getMonth(),
       today.getDate(),
-      today.getHours(), today.getMinutes()+1, 0, 0);
-      // 12, 0, 0, 0);
+      //today.getHours(), today.getMinutes()+1, 0, 0);
+      12, 0, 0, 0);
     logger.log("getIntervalByNoon today: " + todayNoon + " / " + todayNoon.getTime() + " / " + today.getTime());
     return todayNoon.getTime() - today.getTime();
   }
