@@ -529,6 +529,9 @@ function processEachEnrollerData(enrollerDataList, callback) {
         if(result != null) {
           logger.log("send fcm to: " + result);
           sendFCMMessage(result,"새 인연이 도착했습니다.");
+        } else {
+          logger.log("send fcm to: " + result);
+          sendFCMMessage(result,"인연 찾기 설정 내 조건(영화, 나이, 날짜)이 맞는 상대방이 없습니다");
         }
         callback();
       }
@@ -832,7 +835,7 @@ function getIntervalByMidNight() {
   var tomorrowNoon = new Date(today.getFullYear(),
     today.getMonth(),
     today.getDate() + 1,
-    0, 0, 0, 0);
+    0, 0, 10, 0);
   logger.log("getIntervalByMidNight tomorrow: " + tomorrowNoon + " / " + tomorrowNoon.getTime() + " / " + today.getTime());
   return tomorrowNoon.getTime() - today.getTime();
 }
