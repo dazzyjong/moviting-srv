@@ -59,6 +59,7 @@ var HashMap = require('hashmap');
 var timerMap = new HashMap();
 var EXPIRATION_TIME = 43200000;
 var PROPOSE_TIME = 86400000;
+var NINE_HOURS = 32400000;
 
 movieRef.on("child_removed", function(data){
 	console.log("child_removed " + data.key);
@@ -758,16 +759,19 @@ function chooseThreePropose(candidates, enrollerUid, token, callback) {
 }
 
 setTimeout(function() {
+  processPropose(maleEnrollRef);
+  setTimeout(function() {
+    processPropose(femaleEnrollRef);
+  }, 5000);
 
-  setInterval(function(){
+  setInterval(function() {
     processPropose(maleEnrollRef);
-
     setTimeout(function() {
       processPropose(femaleEnrollRef);
     }, 5000);
   }, PROPOSE_TIME);
 
-}, getIntervalByNoon() );
+}, getIntervalByNoon());
 
 function getIntervalByNoon() {
   var today = new Date();
@@ -803,7 +807,7 @@ function removePreviousDate() {
             snapshot.forEach(function(child) {
               var today = new Date();
               var d = new Date(child.val());
-              if(d.getTime() > today.getTime()) {
+              if(d.getTime() - NINE_HOURS > today.getTime()) {
                 newDate.push(child.val());
               }            
             });
